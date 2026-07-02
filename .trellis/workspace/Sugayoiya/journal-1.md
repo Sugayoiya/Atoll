@@ -36,3 +36,37 @@ Analyzed Atoll's actual architecture (SwiftUI UI layer + system layer of manager
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: Claude Code interactive notch: bidirectional hooks, permission prompt, AskUserQuestion answering
+
+**Date**: 2026-07-02
+**Task**: Claude Code interactive notch: bidirectional hooks, permission prompt, AskUserQuestion answering
+**Branch**: `feat/claude-code-live-activity`
+
+### Summary
+
+PoC verified interactive-mode AskUserQuestion pre-answering (allow+updatedInput). Made hook<->Atoll unix socket bidirectional (script v3, server replies on same fd, timeout chain 4.0s<4.5s<5s), added notch Allow/Deny permission prompt for risky tools, AskUserQuestion answer chips with terminal-fallback matrix, and richer live activity status (tool summary, prompt preview, elapsed timer). All gated behind default-off toggles; protocol captured in .trellis/spec/backend/claude-hook-socket-protocol.md. E2E verified in a real interactive claude session.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e509e7e` | (see git log) |
+| `b8c1775` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
