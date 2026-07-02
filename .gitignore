@@ -118,6 +118,15 @@ integration.json
 *.moved-aside
 *.xcuserstate
 
+# Personal dev tooling (synced via private atoll-dev-kit repo, not for upstream PRs)
+.trellis
+.trellis/
+.cursor
+.cursor/
+.claude
+.claude/
+AGENTS.md
+
 # GitHub instructions and agent files
 #
 .github/instructions/
