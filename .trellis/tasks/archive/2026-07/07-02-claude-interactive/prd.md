@@ -44,19 +44,15 @@ Hook capabilities confirmed from official docs (code.claude.com/docs/en/hooks):
 * HTTP hooks are also supported (`type:"http"`, POST body = input, response body =
   decision JSON) — an alternative transport to the current Unix socket.
 
-## Critical open question (BLOCKING, needs PoC)
+## Critical open question — RESOLVED (PoC PASSED 2026-07-02)
 
-The documented `AskUserQuestion` round-trip (defer → resume) is **headless-only**:
-`"defer"` works **only** in non-interactive `claude -p` mode; interactive sessions
-log a warning and ignore it (docs lines 1168, 1185). Atoll's primary use case is a
-user running `claude` interactively in their own terminal.
-
-**Unknown:** in interactive mode, does returning `permissionDecision:"allow"` +
-`updatedInput.answers` from a PreToolUse hook actually pre-answer AskUserQuestion
-(so the terminal never prompts)? Docs don't state this for interactive mode.
-→ Must be verified by a PoC before committing to the AskUserQuestion feature.
-Permission control (allow/deny/ask) and display enrichment do NOT depend on this
-and are known-good in interactive mode.
+PoC (scripts/poc-askuserquestion/) verified in a real interactive `claude`
+session: PreToolUse hook returning `permissionDecision:"allow"` +
+`updatedInput` (questions echoed + `answers` map) **pre-answers
+AskUserQuestion** — the terminal never prompts and shows
+"User answered Claude's questions: Which color do you prefer? → Red".
+The AskUserQuestion answer UI (PR3) is therefore unblocked for interactive mode.
+(`defer` remains headless-only per docs and stays out of scope.)
 
 ## Assumptions (temporary)
 
@@ -66,9 +62,8 @@ and are known-good in interactive mode.
 
 ## Open Questions
 
-* [BLOCKING] Does interactive-mode allow+updatedInput pre-answer AskUserQuestion?
-  → To be settled by PoC (Phase 0). Everything downstream of AskUserQuestion is
-  gated on this result.
+* ~~[BLOCKING] Does interactive-mode allow+updatedInput pre-answer AskUserQuestion?~~
+  → **RESOLVED: YES** (PoC passed 2026-07-02, see section above). PR3 unblocked.
 
 ## Decisions (ADR-lite)
 
@@ -102,7 +97,7 @@ Bidirectional plumbing + permission dialog + display enrichment are unaffected.
 
 ## Acceptance Criteria (evolving)
 
-* [ ] PoC proves (or disproves) interactive-mode AskUserQuestion pre-answering.
+* [x] PoC proves (or disproves) interactive-mode AskUserQuestion pre-answering. → PASSED
 * [ ] Hook script reads Atoll's reply from the socket and prints it to stdout.
 * [ ] Socket server can write a response back on the same client connection.
 * [ ] A dangerous Bash command triggers a notch allow/deny prompt and is honored.
