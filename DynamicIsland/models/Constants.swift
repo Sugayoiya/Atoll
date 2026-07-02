@@ -1129,6 +1129,8 @@ extension Defaults.Keys {
     // MARK: Claude Code Live Activity
     static let enableClaudeCodeLiveActivity = Key<Bool>("enableClaudeCodeLiveActivity", default: false)
     static let claudeCodeSneakPeekEnabled = Key<Bool>("claudeCodeSneakPeekEnabled", default: true)
+    static let claudeCodePermissionPromptEnabled = Key<Bool>("claudeCodePermissionPromptEnabled", default: false)
+    static let claudeCodeQuestionAnswerEnabled = Key<Bool>("claudeCodeQuestionAnswerEnabled", default: false)
     
     // MARK: ColorPicker Feature
     static let enableColorPickerFeature = Key<Bool>("enableColorPickerFeature", default: true)

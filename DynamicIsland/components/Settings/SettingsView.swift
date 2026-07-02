@@ -4177,10 +4177,20 @@ struct LiveActivitiesSettings: View {
                 Defaults.Toggle(key: .claudeCodeSneakPeekEnabled) {
                     Text("Show sneak peek when Claude needs attention")
                 }
+
+                Defaults.Toggle(key: .claudeCodePermissionPromptEnabled) {
+                    Text("Ask in the notch before Claude runs risky tools")
+                }
+                .settingsHighlight(id: highlightID("Ask in the notch before Claude runs risky tools"))
+
+                Defaults.Toggle(key: .claudeCodeQuestionAnswerEnabled) {
+                    Text("Answer Claude's questions from the notch")
+                }
+                .settingsHighlight(id: highlightID("Answer Claude's questions from the notch"))
             } header: {
                 Text("Claude Code Live Activity")
             } footer: {
-                Text("Shows Claude Code session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.claude/hooks and registers it in Claude Code's settings.json.")
+                Text("Shows Claude Code session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.claude/hooks and registers it in Claude Code's settings.json. The permission prompt shows Allow/Deny in the notch for risky tools (e.g. Bash); question answering shows Claude's multiple-choice questions as tappable options. If you don't respond within a few seconds, Claude falls back to its normal terminal prompt.")
             }
         }
         .navigationTitle("Live Activities")

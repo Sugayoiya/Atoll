@@ -26,31 +26,50 @@ struct ClaudeHookEvent: Decodable, Sendable {
     let event: String
     let tool: String?
     let userPrompt: String?
+    /// Raw tool input, forwarded by the hook script for PreToolUse events
+    /// (script v3+). Shape is tool-specific, e.g. `{"command": "..."}` for Bash.
+    let toolInput: JSONValue?
 
     enum CodingKeys: String, CodingKey {
         case provider
         case sessionId = "session_id"
         case cwd, event, tool
         case userPrompt = "user_prompt"
+        case toolInput = "tool_input"
     }
 }
 
 /// Minimal Unix domain socket server that receives JSON events from the
 /// Claude Code hook script at `/tmp/atoll-claude.sock`.
+///
+/// The channel is bidirectional: after decoding an event, the handler may
+/// return response bytes (a hook decision JSON) that are written back on the
+/// same client connection before it is closed. Returning `nil` closes the
+/// connection without a reply, preserving the original fire-and-forget flow.
+///
 /// Owns its synchronization via dedicated dispatch queues.
 final class ClaudeHookSocketServer: @unchecked Sendable {
+    /// Handles a decoded hook event and optionally produces reply bytes to
+    /// send back to the hook script (which prints them to stdout for Claude).
+    typealias EventHandler = @Sendable (ClaudeHookEvent) async -> Data?
+
     static let shared = ClaudeHookSocketServer()
+
+    /// Upper bound for producing a reply. The hook script waits ~5s for a
+    /// response; if the handler takes longer we close the connection with no
+    /// reply so the script (and Claude's normal permission flow) proceeds.
+    private static let responseTimeout: TimeInterval = 4.5
 
     private let socketPath = ClaudeHookScript.socketPath
     private var serverSocket: Int32 = -1
     private var acceptSource: DispatchSourceRead?
-    private var eventHandler: (@Sendable (ClaudeHookEvent) -> Void)?
+    private var eventHandler: EventHandler?
     private let serverQueue = DispatchQueue(label: "com.ebullioscopic.Atoll.claude.socket", qos: .userInitiated)
     private let clientQueue = DispatchQueue(label: "com.ebullioscopic.Atoll.claude.socket.client", qos: .userInitiated, attributes: .concurrent)
 
     private init() {}
 
-    func start(onEvent: @escaping @Sendable (ClaudeHookEvent) -> Void) {
+    func start(onEvent: @escaping EventHandler) {
         serverQueue.async { [weak self] in
             self?.startServer(onEvent: onEvent)
         }
@@ -62,7 +81,7 @@ final class ClaudeHookSocketServer: @unchecked Sendable {
         }
     }
 
-    private func startServer(onEvent: @escaping @Sendable (ClaudeHookEvent) -> Void) {
+    private func startServer(onEvent: @escaping EventHandler) {
         guard serverSocket < 0 else { return }
 
         // Remove any stale socket file from a previous run.
@@ -166,7 +185,7 @@ final class ClaudeHookSocketServer: @unchecked Sendable {
         }
     }
 
-    private static func handleClient(_ clientSocket: Int32, eventHandler: (@Sendable (ClaudeHookEvent) -> Void)?) {
+    private static func handleClient(_ clientSocket: Int32, eventHandler: EventHandler?) {
         defer { close(clientSocket) }
 
         var timeout = timeval(tv_sec: 1, tv_usec: 0)
@@ -174,6 +193,8 @@ final class ClaudeHookSocketServer: @unchecked Sendable {
             setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, pointer, socklen_t(MemoryLayout<timeval>.size))
         }
 
+        // The hook script half-closes its write side after sending, so this
+        // loop reads until EOF while the connection itself stays open for a reply.
         var allData = Data()
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
@@ -188,10 +209,69 @@ final class ClaudeHookSocketServer: @unchecked Sendable {
         }
 
         guard !allData.isEmpty,
-              let event = try? JSONDecoder().decode(ClaudeHookEvent.self, from: allData) else {
+              let event = try? JSONDecoder().decode(ClaudeHookEvent.self, from: allData),
+              let eventHandler else {
             return
         }
 
-        eventHandler?(event)
+        // Bridge the async handler onto this blocking client-queue thread,
+        // bounded so a stalled handler never leaves the hook script hanging.
+        let response = awaitResponse(for: event, eventHandler: eventHandler)
+
+        if let response, !response.isEmpty {
+            writeAll(response, to: clientSocket)
+        }
+    }
+
+    private static func awaitResponse(for event: ClaudeHookEvent, eventHandler: @escaping EventHandler) -> Data? {
+        let box = ResponseBox()
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            let result = await eventHandler(event)
+            box.store(result)
+            semaphore.signal()
+        }
+        guard semaphore.wait(timeout: .now() + responseTimeout) == .success else {
+            Logger.log("Claude hook handler timed out; closing connection with no decision", category: .warning)
+            return nil
+        }
+        return box.take()
+    }
+
+    private static func writeAll(_ data: Data, to clientSocket: Int32) {
+        data.withUnsafeBytes { (rawBuffer: UnsafeRawBufferPointer) in
+            guard var pointer = rawBuffer.baseAddress else { return }
+            var remaining = rawBuffer.count
+            while remaining > 0 {
+                let written = write(clientSocket, pointer, remaining)
+                if written > 0 {
+                    pointer += written
+                    remaining -= written
+                    continue
+                }
+                if errno == EINTR { continue }
+                Logger.log("Claude hook socket reply write failed: \(errno)", category: .error)
+                return
+            }
+        }
+    }
+
+    /// Thread-safe single-value box used to hand the handler result from the
+    /// async Task back to the blocking client-queue thread.
+    private final class ResponseBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: Data?
+
+        func store(_ data: Data?) {
+            lock.lock()
+            value = data
+            lock.unlock()
+        }
+
+        func take() -> Data? {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
     }
 }

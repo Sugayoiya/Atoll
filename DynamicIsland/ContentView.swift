@@ -561,6 +561,12 @@ struct ContentView: View {
                         if handleClosedMusicWaveformTapIfNeeded() {
                             return
                         }
+                        // While a Claude permission prompt is showing in the
+                        // closed notch, its Allow/Deny buttons own the clicks;
+                        // don't let a stray tap expand the notch over them.
+                        if vm.notchState == .closed && claudeCodeManager.isPermissionPromptVisible {
+                            return
+                        }
                         if vm.notchState == .closed && Defaults[.enableHaptics] {
                             triggerHapticIfAllowed()
                         }
@@ -1982,6 +1988,8 @@ struct ContentView: View {
                 guard !self.coordinator.isHoverOpenSuppressed else { return }
                 guard self.isHovering else { return }
                 guard !self.handleClosedMusicWaveformTapIfNeeded() else { return }
+                // Claude permission prompt visible: leave clicks to its buttons.
+                guard !ClaudeCodeManager.shared.isPermissionPromptVisible else { return }
                 if Defaults[.enableHaptics] {
                     self.triggerHapticIfAllowed()
                 }
