@@ -4167,6 +4167,21 @@ struct LiveActivitiesSettings: View {
             } footer: {
                 Text("Configure countdown style and lock screen widgets in the Calendar tab.")
             }
+
+            Section {
+                Defaults.Toggle(key: .enableClaudeCodeLiveActivity) {
+                    Text("Enable Claude Code live activity")
+                }
+                .settingsHighlight(id: highlightID("Enable Claude Code live activity"))
+
+                Defaults.Toggle(key: .claudeCodeSneakPeekEnabled) {
+                    Text("Show sneak peek when Claude needs attention")
+                }
+            } header: {
+                Text("Claude Code Live Activity")
+            } footer: {
+                Text("Shows Claude Code session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.claude/hooks and registers it in Claude Code's settings.json.")
+            }
         }
         .navigationTitle("Live Activities")
         .onAppear {

@@ -1125,6 +1125,10 @@ extension Defaults.Keys {
     static let reminderLeadTime = Key<Int>("reminderLeadTime", default: 5)
     static let reminderSneakPeekDuration = Key<Double>("reminderSneakPeekDuration", default: 5)
     static let timerControlWindowEnabled = Key<Bool>("timerControlWindowEnabled", default: true)
+
+    // MARK: Claude Code Live Activity
+    static let enableClaudeCodeLiveActivity = Key<Bool>("enableClaudeCodeLiveActivity", default: false)
+    static let claudeCodeSneakPeekEnabled = Key<Bool>("claudeCodeSneakPeekEnabled", default: true)
     
     // MARK: ColorPicker Feature
     static let enableColorPickerFeature = Key<Bool>("enableColorPickerFeature", default: true)
