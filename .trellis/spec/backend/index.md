@@ -28,6 +28,7 @@ Before writing system-layer code, read:
 | [Error Handling](./error-handling.md) | Error types per layer, catch-and-log conventions |
 | [Logging Guidelines](./logging-guidelines.md) | `utils/Logger.swift`, log levels, categories |
 | [Quality Guidelines](./quality-guidelines.md) | Concurrency, singletons, known tech debt |
+| [Claude Hook Socket Protocol](./claude-hook-socket-protocol.md) | Bidirectional hook ↔ Atoll Unix-socket contract: reply schema, timeout chain, error matrix |
 
 ---
 
