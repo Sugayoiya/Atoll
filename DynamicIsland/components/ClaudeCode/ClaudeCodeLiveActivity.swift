@@ -28,6 +28,8 @@ struct ClaudeCodeLiveActivity: View {
     @State private var isPulsing = false
 
     private let wingPadding: CGFloat = 16
+    /// Cap for the status label (tool names have no intrinsic length limit).
+    private let maxStatusTextWidth: CGFloat = 160
 
     private var notchContentHeight: CGFloat {
         max(0, vm.effectiveClosedNotchHeight)
@@ -42,9 +44,10 @@ struct ClaudeCodeLiveActivity: View {
 
     @ViewBuilder
     private func content(for session: ClaudeCodeManager.Session) -> some View {
+        let wings = wingWidths(for: session)
         HStack(spacing: 0) {
             Color.clear
-                .frame(width: leftWingWidth, height: notchContentHeight)
+                .frame(width: wings.left, height: notchContentHeight)
                 .background(alignment: .leading) {
                     iconSection(for: session)
                         .padding(.leading, wingPadding / 2)
@@ -56,14 +59,16 @@ struct ClaudeCodeLiveActivity: View {
                 .frame(width: vm.closedNotchSize.width, height: notchContentHeight)
 
             Color.clear
-                .frame(width: rightWingWidth(for: session), height: notchContentHeight)
+                .frame(width: wings.right, height: notchContentHeight)
                 .background(alignment: .trailing) {
                     statusSection(for: session)
                         .padding(.trailing, wingPadding / 2)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                 }
+                // Never let overflowing content bleed left into the physical notch.
+                .clipped()
         }
-        .frame(height: notchContentHeight, alignment: .center)
+        .frame(width: wings.left + vm.closedNotchSize.width + wings.right, height: notchContentHeight, alignment: .center)
         .onAppear { isPulsing = true }
     }
 
@@ -99,6 +104,7 @@ struct ClaudeCodeLiveActivity: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(accent)
                 .lineLimit(1)
+                .truncationMode(.tail)
                 .contentTransition(.opacity)
         }
         .frame(height: notchContentHeight, alignment: .center)
@@ -116,10 +122,22 @@ struct ClaudeCodeLiveActivity: View {
         wingPadding + iconDiameter
     }
 
+    /// The whole HStack is centered on the physical notch, so asymmetric wings
+    /// shift the center black segment sideways and let the hardware notch
+    /// occlude the wider wing's inner content (e.g. the session-count badge).
+    /// Balancing both wings to the same width keeps the center segment aligned.
+    private func wingWidths(for session: ClaudeCodeManager.Session) -> (left: CGFloat, right: CGFloat) {
+        let balanced = max(leftWingWidth, rightWingWidth(for: session))
+        return (balanced, balanced)
+    }
+
     private func rightWingWidth(for session: ClaudeCodeManager.Session) -> CGFloat {
-        let textWidth = measureTextWidth(
-            statusText(for: session),
-            font: NSFont.systemFont(ofSize: 12, weight: .semibold)
+        let textWidth = min(
+            measureTextWidth(
+                statusText(for: session),
+                font: NSFont.systemFont(ofSize: 12, weight: .semibold)
+            ),
+            maxStatusTextWidth
         )
         var width = wingPadding + textWidth
         if manager.sessions.count > 1 {
