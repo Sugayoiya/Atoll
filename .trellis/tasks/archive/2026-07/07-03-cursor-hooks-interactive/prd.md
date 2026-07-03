@@ -114,16 +114,16 @@ Cursor hooks facts (see `research/cursor-hooks-reference.md`):
 
 ## Acceptance Criteria
 
-* [ ] Starting a Cursor agent chat shows a notch live activity within ~1s.
-* [ ] Status transitions (prompt submitted → tool running → stop) mirror
+* [x] Starting a Cursor agent chat shows a notch live activity within ~1s.
+* [x] Status transitions (prompt submitted → tool running → stop) mirror
       Claude behavior; provider badge distinguishes Cursor vs Claude sessions.
-* [ ] A shell command in Cursor triggers a notch Allow/Deny prompt; the
+* [x] A shell command in Cursor triggers a notch Allow/Deny prompt; the
       decision is honored; ignoring the prompt falls through to Cursor's own
       permission flow (never blocks).
-* [ ] Uninstall removes only Atoll-managed entries from `~/.cursor/hooks.json`.
-* [ ] Claude integration works unchanged after the refactor (live activity,
+* [x] Uninstall removes only Atoll-managed entries from `~/.cursor/hooks.json`.
+* [x] Claude integration works unchanged after the refactor (live activity,
       permission prompt, AskUserQuestion answering).
-* [ ] Concurrent Claude + Cursor sessions coexist in the sessions list.
+* [x] Concurrent Claude + Cursor sessions coexist in the sessions list.
 
 ## Definition of Done (team quality bar)
 
