@@ -1131,6 +1131,10 @@ extension Defaults.Keys {
     static let claudeCodeSneakPeekEnabled = Key<Bool>("claudeCodeSneakPeekEnabled", default: true)
     static let claudeCodePermissionPromptEnabled = Key<Bool>("claudeCodePermissionPromptEnabled", default: false)
     static let claudeCodeQuestionAnswerEnabled = Key<Bool>("claudeCodeQuestionAnswerEnabled", default: false)
+
+    // MARK: Cursor Live Activity
+    static let enableCursorLiveActivity = Key<Bool>("enableCursorLiveActivity", default: false)
+    static let cursorPermissionPromptEnabled = Key<Bool>("cursorPermissionPromptEnabled", default: false)
     
     // MARK: ColorPicker Feature
     static let enableColorPickerFeature = Key<Bool>("enableColorPickerFeature", default: true)

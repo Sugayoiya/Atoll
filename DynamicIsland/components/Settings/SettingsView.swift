@@ -4192,6 +4192,22 @@ struct LiveActivitiesSettings: View {
             } footer: {
                 Text("Shows Claude Code session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.claude/hooks and registers it in Claude Code's settings.json. The permission prompt shows Allow/Deny in the notch for risky tools (e.g. Bash); question answering shows Claude's multiple-choice questions as tappable options. If you don't respond within a few seconds, Claude falls back to its normal terminal prompt.")
             }
+
+            Section {
+                Defaults.Toggle(key: .enableCursorLiveActivity) {
+                    Text("Enable Cursor live activity")
+                }
+                .settingsHighlight(id: highlightID("Enable Cursor live activity"))
+
+                Defaults.Toggle(key: .cursorPermissionPromptEnabled) {
+                    Text("Ask in the notch before Cursor runs shell or MCP tools")
+                }
+                .settingsHighlight(id: highlightID("Ask in the notch before Cursor runs shell or MCP tools"))
+            } header: {
+                Text("Cursor Live Activity")
+            } footer: {
+                Text("Shows Cursor agent session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.cursor/hooks and registers it in ~/.cursor/hooks.json. The permission prompt shows Allow/Deny in the notch for shell commands and MCP tool calls; if you don't respond within a few seconds, Cursor falls back to its own permission flow. Disabling the toggle keeps the hooks installed but ignores their events; uninstalling removes only Atoll-managed entries.")
+            }
         }
         .navigationTitle("Live Activities")
         .onAppear {
