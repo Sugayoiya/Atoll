@@ -21,11 +21,19 @@ import Combine
 import Defaults
 import SwiftUI
 
-/// Tracks live Claude Code sessions from hook events and drives the
-/// closed-notch Claude Code live activity.
+/// Tracks live agent sessions (Claude Code, and future providers) from hook
+/// events and drives the closed-notch agent live activity.
+///
+/// Provider-specific behavior (event normalization, reply encoding, hook
+/// installation) lives in `AgentProvider` adapters; this manager owns the
+/// shared session list, the single pending-prompt slot, and its timeout chain.
 @MainActor
-final class ClaudeCodeManager: ObservableObject {
-    static let shared = ClaudeCodeManager()
+final class AgentSessionManager: ObservableObject {
+    static let shared = AgentSessionManager()
+
+    /// Registered provider adapters, keyed by envelope `provider` id.
+    /// PR2 adds Cursor here.
+    let providers: [String: AgentProvider]
 
     enum SessionStatus: Equatable {
         case thinking
@@ -60,42 +68,30 @@ final class ClaudeCodeManager: ObservableObject {
     }
 
     struct Session: Identifiable, Equatable {
-        let id: String
+        /// Provider id ("claude", ...) — sessions are keyed by (provider, sessionId).
+        let provider: String
+        let sessionId: String
         var cwd: String
         var status: SessionStatus
         var lastUpdated: Date
         /// When the current status (case + payload) started, for the elapsed indicator.
         var statusChangedAt: Date
-        /// Concise summary of the running tool's input (PreToolUse only).
+        /// Concise summary of the running tool's input (toolWillRun only).
         var toolSummary: String?
         /// Truncated preview of the latest user prompt, shown while thinking.
         var promptPreview: String?
 
+        var id: String { "\(provider):\(sessionId)" }
+
         var projectName: String {
             let name = URL(fileURLWithPath: cwd).lastPathComponent
-            return name.isEmpty ? "Claude" : name
+            return name.isEmpty ? "Agent" : name
         }
     }
 
-    /// A PreToolUse call awaiting an Allow/Deny decision from the notch.
-    struct PermissionRequest: Identifiable, Equatable {
-        let id = UUID()
-        let sessionId: String
-        let toolName: String
-        /// Concise, truncated summary of the tool input (e.g. the bash command).
-        let inputSummary: String
-    }
-
-    /// An AskUserQuestion call awaiting a chosen option from the notch.
-    struct QuestionRequest: Identifiable, Equatable {
-        let id = UUID()
-        let sessionId: String
-        let question: ClaudeAskUserQuestion
-    }
-
     @Published private(set) var sessions: [Session] = []
-    @Published private(set) var pendingPermission: PermissionRequest?
-    @Published private(set) var pendingQuestion: QuestionRequest?
+    @Published private(set) var pendingPermission: AgentPermissionRequest?
+    @Published private(set) var pendingQuestion: AgentQuestionRequest?
 
     /// Whether an interactive prompt (permission Allow/Deny OR question
     /// chips — they share this flag) is actually on screen, reported by the
@@ -117,13 +113,16 @@ final class ClaudeCodeManager: ObservableObject {
         sessions.max(by: { $0.lastUpdated < $1.lastUpdated })
     }
 
-    static let accentColor = Color(red: 0.85, green: 0.45, blue: 0.25)
+    /// Fallback accent when no provider context is available (sneak peek etc.).
+    static let defaultAccentColor = Color(red: 0.85, green: 0.45, blue: 0.25)
 
-    /// Tools that trigger the notch Allow/Deny permission prompt.
-    /// AskUserQuestion is NOT listed here: it goes through the dedicated
-    /// question-answer flow (PoC verified interactive pre-answering works).
-    /// ExitPlanMode stays excluded — answering it from the notch is out of scope.
-    static let permissionPromptTools: Set<String> = ["Bash"]
+    func provider(for id: String) -> AgentProvider? {
+        providers[id]
+    }
+
+    func accentColor(for providerId: String) -> Color {
+        providers[providerId]?.accentColor ?? Self.defaultAccentColor
+    }
 
     /// UI budget for a pending prompt (permission or question). Must stay
     /// under the socket server's 4.5s response timeout so a nil resolution
@@ -135,29 +134,54 @@ final class ClaudeCodeManager: ObservableObject {
     private var isRunning = false
     private let staleSessionTimeout: TimeInterval = 60 * 60
 
-    private var promptContinuation: CheckedContinuation<ClaudeHookResponse?, Never>?
+    /// Resolves with the provider-encoded reply bytes, or nil for no decision.
+    private var promptContinuation: CheckedContinuation<Data?, Never>?
     private var promptTimeoutTask: Task<Void, Never>? { didSet { oldValue?.cancel() } }
 
     /// Permission and question prompts share a single pending slot: a second
-    /// concurrent PreToolUse falls through to the terminal flow.
+    /// concurrent tool call falls through to the provider's own flow.
     private var hasPendingPrompt: Bool {
         pendingPermission != nil || pendingQuestion != nil
     }
 
+    private var anyProviderEnabled: Bool {
+        providers.values.contains { $0.isEnabled }
+    }
+
     private init() {
-        Defaults.publisher(.enableClaudeCodeLiveActivity, options: [])
+        let claude = ClaudeProvider()
+        let cursor = CursorProvider()
+        providers = [claude.id: claude, cursor.id: cursor]
+
+        // Each provider's enable toggle starts/stops the shared socket server:
+        // it runs while ANY provider is enabled.
+        Defaults.publisher(keys: .enableClaudeCodeLiveActivity, .enableCursorLiveActivity, options: [])
             .receive(on: RunLoop.main)
-            .sink { [weak self] change in
-                if change.newValue {
-                    self?.startIfNeeded()
-                } else {
-                    self?.stop()
-                }
+            .sink { [weak self] _ in
+                self?.refreshRunningState()
             }
             .store(in: &cancellables)
 
-        if Defaults[.enableClaudeCodeLiveActivity] {
+        if anyProviderEnabled {
             startIfNeeded()
+        }
+    }
+
+    private func refreshRunningState() {
+        if anyProviderEnabled {
+            startIfNeeded()
+            // A provider toggled on while the server is already running still
+            // needs its hooks installed (startIfNeeded is a no-op then).
+            installEnabledProviders()
+        } else {
+            stop()
+        }
+        // Drop sessions of providers that were just disabled.
+        let disabled = sessions.filter { providers[$0.provider]?.isEnabled != true }
+        if !disabled.isEmpty {
+            withAnimation(.smooth) {
+                sessions.removeAll { session in disabled.contains(where: { $0.id == session.id }) }
+            }
         }
     }
 
@@ -165,77 +189,76 @@ final class ClaudeCodeManager: ObservableObject {
         guard !isRunning else { return }
         isRunning = true
 
-        Task.detached(priority: .utility) {
-            ClaudeHookInstaller.installIfNeeded()
-        }
+        installEnabledProviders()
 
-        ClaudeHookSocketServer.shared.start { event in
-            await ClaudeCodeManager.shared.process(event: event)
+        AgentHookSocketServer.shared.start { envelope in
+            await AgentSessionManager.shared.process(envelope: envelope)
         }
 
         startStaleCleanup()
-        Logger.log("Claude Code live activity started", category: .lifecycle)
+        Logger.log("Agent session live activity started", category: .lifecycle)
+    }
+
+    private func installEnabledProviders() {
+        let enabledProviders = providers.values.filter { $0.isEnabled }
+        Task.detached(priority: .utility) {
+            for provider in enabledProviders {
+                provider.installIfNeeded()
+            }
+        }
     }
 
     func stop() {
         guard isRunning else { return }
         isRunning = false
-        ClaudeHookSocketServer.shared.stop()
+        AgentHookSocketServer.shared.stop()
         staleCleanupTask = nil
         resolvePendingPrompt(with: nil)
         withAnimation(.smooth) {
             sessions.removeAll()
         }
-        Logger.log("Claude Code live activity stopped", category: .lifecycle)
+        Logger.log("Agent session live activity stopped", category: .lifecycle)
     }
 
-    /// Removes the hook from Claude Code settings.json (called from Settings UI).
-    func uninstallHook() {
+    /// Removes a provider's hook installation (called from Settings UI).
+    func uninstallHook(providerId: String) {
+        guard let provider = providers[providerId] else { return }
         Task.detached(priority: .utility) {
-            ClaudeHookInstaller.uninstall()
+            provider.uninstall()
         }
     }
 
     /// Socket-server entry point: updates the live activity state and, for
-    /// answerable PreToolUse calls, blocks (bounded) on a notch prompt.
-    /// Returning nil sends no reply, so Claude's normal terminal flow runs.
-    private func process(event: ClaudeHookEvent) async -> Data? {
-        handle(event: event)
+    /// answerable tool calls, blocks (bounded) on a notch prompt.
+    /// Returning nil sends no reply, so the provider's normal flow runs.
+    private func process(envelope: AgentHookEnvelope) async -> Data? {
+        guard let provider = providers[envelope.provider], provider.isEnabled else {
+            return nil
+        }
+
+        if let event = provider.mapEvent(envelope) {
+            handle(event: event)
+        }
 
         // Empty session ids are dropped by handle(event:), so no session (and
-        // no live activity) would exist to display the prompt — skip it too.
-        guard event.event == "PreToolUse",
-              !event.sessionId.isEmpty,
-              Defaults[.enableClaudeCodeLiveActivity],
-              let tool = event.tool else {
+        // no live activity) would exist to display the prompt — providers
+        // already guard on that inside promptRequest(for:).
+        guard let prompt = provider.promptRequest(for: envelope) else {
             return nil
         }
-
-        if tool == "AskUserQuestion" {
-            guard Defaults[.claudeCodeQuestionAnswerEnabled],
-                  let question = ClaudeAskUserQuestion.parse(toolInput: event.toolInput) else {
-                return nil
-            }
-            return await requestQuestionAnswer(for: event, question: question)?.encoded()
+        switch prompt {
+        case .permission(let request):
+            return await present(permission: request)
+        case .question(let request):
+            return await present(question: request)
         }
-
-        guard Defaults[.claudeCodePermissionPromptEnabled],
-              Self.permissionPromptTools.contains(tool) else {
-            return nil
-        }
-        return await requestPermissionDecision(for: event, tool: tool)?.encoded()
     }
 
     /// Presents the Allow/Deny prompt and suspends until the user acts, the
     /// UI budget elapses, or the session ends — whichever happens first.
-    private func requestPermissionDecision(for event: ClaudeHookEvent, tool: String) async -> ClaudeHookResponse? {
+    private func present(permission request: AgentPermissionRequest) async -> Data? {
         guard !hasPendingPrompt else { return nil }
 
-        let request = PermissionRequest(
-            sessionId: event.sessionId,
-            toolName: tool,
-            inputSummary: ClaudeToolSummary.permissionSummary(tool: tool, input: event.toolInput)
-        )
         withAnimation(.smooth(duration: 0.25)) {
             pendingPermission = request
         }
@@ -254,10 +277,9 @@ final class ClaudeCodeManager: ObservableObject {
 
     /// Presents the question chips and suspends until the user picks an
     /// option, the UI budget elapses, or the session ends.
-    private func requestQuestionAnswer(for event: ClaudeHookEvent, question: ClaudeAskUserQuestion) async -> ClaudeHookResponse? {
+    private func present(question request: AgentQuestionRequest) async -> Data? {
         guard !hasPendingPrompt else { return nil }
 
-        let request = QuestionRequest(sessionId: event.sessionId, question: question)
         withAnimation(.smooth(duration: 0.25)) {
             pendingQuestion = request
         }
@@ -283,38 +305,26 @@ final class ClaudeCodeManager: ObservableObject {
     /// Called from the notch UI when the user taps Allow or Deny.
     func answerPendingPermission(allow: Bool) {
         // Guard against a stale tap resolving a prompt of the other kind: a
-        // bare allow/deny must never answer a pending QUESTION (AskUserQuestion
-        // requires allow + updatedInput, so that would silently drop the answer).
-        guard pendingPermission != nil else { return }
-        let decision = ClaudeHookResponse(
-            hookSpecificOutput: .init(
-                permissionDecision: allow ? .allow : .deny,
-                permissionDecisionReason: allow ? "Allowed from Atoll notch" : "Denied from Atoll notch"
-            )
-        )
-        resolvePendingPrompt(with: decision)
+        // bare allow/deny must never answer a pending QUESTION (question
+        // replies need the provider's answer encoding, so that would silently
+        // drop the answer).
+        guard let request = pendingPermission else { return }
+        let decision: AgentDecision = allow
+            ? .allow(reason: "Allowed from Atoll notch")
+            : .deny(reason: "Denied from Atoll notch")
+        resolvePendingPrompt(with: request.encodeDecision(decision))
     }
 
     /// Called from the notch UI when the user taps an answer chip.
-    /// Pre-answers AskUserQuestion: allow + updatedInput carrying the original
-    /// questions (echoed verbatim) plus the `answers` map — `allow` alone is
-    /// not sufficient for AskUserQuestion.
     func answerPendingQuestion(optionLabel: String) {
         guard let request = pendingQuestion else { return }
-        let decision = ClaudeHookResponse(
-            hookSpecificOutput: .init(
-                permissionDecision: .allow,
-                permissionDecisionReason: "Answered from Atoll notch",
-                updatedInput: request.question.updatedInput(choosing: optionLabel)
-            )
-        )
-        resolvePendingPrompt(with: decision)
+        resolvePendingPrompt(with: request.encodeAnswer(optionLabel))
     }
 
     /// Resolves (at most once) the pending prompt and tears down its UI.
-    /// `nil` means "no decision": the hook exits silently and Claude's normal
-    /// terminal flow takes over.
-    private func resolvePendingPrompt(with decision: ClaudeHookResponse?) {
+    /// `nil` means "no decision": the hook exits silently and the provider's
+    /// normal flow takes over.
+    private func resolvePendingPrompt(with reply: Data?) {
         promptTimeoutTask = nil
         guard hasPendingPrompt || promptContinuation != nil else { return }
         withAnimation(.smooth(duration: 0.25)) {
@@ -323,61 +333,64 @@ final class ClaudeCodeManager: ObservableObject {
         }
         let continuation = promptContinuation
         promptContinuation = nil
-        continuation?.resume(returning: decision)
+        continuation?.resume(returning: reply)
     }
 
-    private func handle(event: ClaudeHookEvent) {
-        guard Defaults[.enableClaudeCodeLiveActivity] else { return }
+    private func handle(event: AgentEvent) {
         guard !event.sessionId.isEmpty else { return }
 
         // A stop/end for the session that owns the pending prompt invalidates it.
-        if ["SessionEnd", "Stop", "SubagentStop"].contains(event.event),
-           pendingPermission?.sessionId == event.sessionId || pendingQuestion?.sessionId == event.sessionId {
+        let endsSession: Bool
+        switch event.kind {
+        case .sessionEnd, .stopped, .subagentStopped: endsSession = true
+        default: endsSession = false
+        }
+        if endsSession,
+           (pendingPermission?.provider == event.provider && pendingPermission?.sessionId == event.sessionId)
+            || (pendingQuestion?.provider == event.provider && pendingQuestion?.sessionId == event.sessionId) {
             resolvePendingPrompt(with: nil)
         }
 
-        switch event.event {
-        case "SessionEnd":
-            removeSession(id: event.sessionId)
+        switch event.kind {
+        case .sessionEnd:
+            removeSession(provider: event.provider, sessionId: event.sessionId)
             return
-        case "SessionStart":
+        case .sessionStart:
             upsertSession(event: event, status: .waitingForInput)
-        case "UserPromptSubmit", "PostToolUse":
+        case .promptSubmit, .toolDidRun:
             upsertSession(event: event, status: .thinking)
-        case "PreToolUse":
-            upsertSession(event: event, status: .runningTool(event.tool ?? "Tool"))
-        case "PreCompact":
+        case .toolWillRun(let tool):
+            upsertSession(event: event, status: .runningTool(tool ?? "Tool"))
+        case .compacting:
             upsertSession(event: event, status: .compacting)
-        case "Stop", "SubagentStop", "PermissionRequest":
-            let wasBusy = sessions.first(where: { $0.id == event.sessionId })?.status.isBusy ?? false
+        case .stopped, .subagentStopped, .permissionRequested:
+            let wasBusy = sessions.first(where: { $0.provider == event.provider && $0.sessionId == event.sessionId })?.status.isBusy ?? false
             upsertSession(event: event, status: .waitingForInput)
-            if wasBusy, event.event != "SubagentStop" {
+            if wasBusy, event.kind != .subagentStopped {
                 showAttentionSneakPeek(for: event)
             }
-        default:
-            return
         }
     }
 
-    private func upsertSession(event: ClaudeHookEvent, status: SessionStatus) {
+    private func upsertSession(event: AgentEvent, status: SessionStatus) {
         let now = Date()
 
         // Display enrichment derived from the event, independent of status mapping.
         let toolSummary: String?? // .some(nil) clears, nil keeps the current value
-        switch event.event {
-        case "PreToolUse":
-            toolSummary = event.tool.map { ClaudeToolSummary.summary(tool: $0, input: event.toolInput) }
-        case "PostToolUse", "Stop", "SubagentStop", "PermissionRequest":
-            toolSummary = .some(nil)
-        default:
-            toolSummary = nil
+        switch event.toolSummary {
+        case .keep: toolSummary = nil
+        case .clear: toolSummary = .some(nil)
+        case .set(let summary): toolSummary = .some(summary)
         }
-        let promptPreview = event.event == "UserPromptSubmit"
-            ? event.userPrompt?.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-            : nil
+        let promptPreview: String?
+        if case .promptSubmit(let preview) = event.kind {
+            promptPreview = preview?.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            promptPreview = nil
+        }
 
         withAnimation(.smooth(duration: 0.25)) {
-            if let index = sessions.firstIndex(where: { $0.id == event.sessionId }) {
+            if let index = sessions.firstIndex(where: { $0.provider == event.provider && $0.sessionId == event.sessionId }) {
                 if sessions[index].status != status {
                     sessions[index].statusChangedAt = now
                 }
@@ -394,7 +407,8 @@ final class ClaudeCodeManager: ObservableObject {
                 }
             } else {
                 sessions.append(Session(
-                    id: event.sessionId,
+                    provider: event.provider,
+                    sessionId: event.sessionId,
                     cwd: event.cwd ?? "",
                     status: status,
                     lastUpdated: now,
@@ -406,17 +420,18 @@ final class ClaudeCodeManager: ObservableObject {
         }
     }
 
-    private func removeSession(id: String) {
+    private func removeSession(provider: String, sessionId: String) {
         withAnimation(.smooth(duration: 0.25)) {
-            sessions.removeAll { $0.id == id }
+            sessions.removeAll { $0.provider == provider && $0.sessionId == sessionId }
         }
     }
 
-    private func showAttentionSneakPeek(for event: ClaudeHookEvent) {
+    private func showAttentionSneakPeek(for event: AgentEvent) {
         guard Defaults[.claudeCodeSneakPeekEnabled] else { return }
+        let providerName = providers[event.provider]?.displayName ?? "Agent"
         let projectName = URL(fileURLWithPath: event.cwd ?? "").lastPathComponent
-        let title = projectName.isEmpty ? "Claude Code" : projectName
-        let subtitle = event.event == "PermissionRequest"
+        let title = projectName.isEmpty ? providerName : projectName
+        let subtitle = event.kind == .permissionRequested
             ? String(localized: "Permission requested")
             : String(localized: "Ready for input")
         DynamicIslandViewCoordinator.shared.toggleSneakPeek(
@@ -425,7 +440,7 @@ final class ClaudeCodeManager: ObservableObject {
             duration: 3,
             title: title,
             subtitle: subtitle,
-            accentColor: Self.accentColor
+            accentColor: accentColor(for: event.provider)
         )
     }
 

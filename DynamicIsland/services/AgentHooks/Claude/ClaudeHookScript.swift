@@ -23,20 +23,22 @@ import Foundation
 /// Embedded as a string so it survives without a bundled resource file.
 enum ClaudeHookScript {
     static let fileName = "atoll-claude-hook.sh"
-    static let socketPath = "/tmp/atoll-claude.sock"
+    static let socketPath = AgentHookSocketServer.socketPath
     static let hookCommand = "\"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/\(fileName)\""
 
     /// Bump when the script contents change in a way that requires re-install.
     /// The installer rewrites the script whenever the on-disk copy differs,
     /// so this marker mainly documents the protocol revision.
-    static let version = 3
+    /// v4: sends the generic agent envelope `{provider, event, payload}` with
+    /// Claude's RAW stdin JSON as payload; socket moved to /tmp/atoll-agent.sock.
+    static let version = 4
 
     static let contents = #"""
 #!/bin/bash
 # Atoll Hook - forwards Claude Code events to Atoll via Unix socket
-# atoll-hook-version: 3 (bidirectional + tool_input forwarding for PreToolUse)
+# atoll-hook-version: 4 (envelope wire format {provider, event, payload})
 
-SOCKET_PATH="/tmp/atoll-claude.sock"
+SOCKET_PATH="/tmp/atoll-agent.sock"
 
 # Exit silently if socket doesn't exist (Atoll not running)
 [ -S "$SOCKET_PATH" ] || exit 0
@@ -53,28 +55,13 @@ except Exception:
 
 hook_event = input_data.get('hook_event_name', '')
 
+# Envelope: the raw hook input is forwarded untouched; all normalization
+# happens inside Atoll (per-provider Swift adapter).
 output = {
     'provider': 'claude',
-    'session_id': input_data.get('session_id', ''),
-    'cwd': input_data.get('cwd', ''),
     'event': hook_event,
+    'payload': input_data,
 }
-
-tool = input_data.get('tool_name', '')
-if tool:
-    output['tool'] = tool
-
-# Forward the raw tool input on PreToolUse so Atoll can summarize the call
-# (e.g. the bash command string) in its permission prompt.
-if hook_event == 'PreToolUse':
-    tool_input = input_data.get('tool_input')
-    if isinstance(tool_input, dict):
-        output['tool_input'] = tool_input
-
-if hook_event == 'UserPromptSubmit':
-    prompt = input_data.get('prompt', '')
-    if prompt:
-        output['user_prompt'] = prompt[:200]
 
 reply = b''
 try:

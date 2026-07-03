@@ -19,11 +19,13 @@
 import SwiftUI
 import Defaults
 
-/// Closed-notch live activity that mirrors the state of running
-/// Claude Code sessions (driven by ClaudeCodeManager hook events).
-struct ClaudeCodeLiveActivity: View {
+/// Closed-notch live activity that mirrors the state of running agent
+/// sessions (Claude Code and future providers, driven by
+/// AgentSessionManager hook events). Provider identity shows through the
+/// provider's accent color and icon.
+struct AgentLiveActivity: View {
     @EnvironmentObject var vm: DynamicIslandViewModel
-    @ObservedObject var manager = ClaudeCodeManager.shared
+    @ObservedObject var manager = AgentSessionManager.shared
 
     @State private var isPulsing = false
 
@@ -59,7 +61,7 @@ struct ClaudeCodeLiveActivity: View {
     // MARK: - Permission prompt (Allow / Deny)
 
     @ViewBuilder
-    private func permissionContent(for request: ClaudeCodeManager.PermissionRequest) -> some View {
+    private func permissionContent(for request: AgentPermissionRequest) -> some View {
         let leftWidth = permissionLeftWingWidth(for: request)
         let rightWidth = permissionRightWingWidth(for: request)
         let balanced = max(leftWidth, rightWidth)
@@ -121,14 +123,14 @@ struct ClaudeCodeLiveActivity: View {
 
     private var maxPermissionSummaryWidth: CGFloat { 170 }
 
-    // MARK: - AskUserQuestion prompt (option chips)
+    // MARK: - Question prompt (option chips, Claude-only today)
 
     /// Question wing layout: header/question text on the left wing, the
     /// answer options as compact tappable chips on the right wing. Inputs
     /// that can't fit this layout never reach the UI — they are filtered by
-    /// `ClaudeAskUserQuestion.parse` and answered in the terminal instead.
+    /// the provider adapter and answered in the terminal instead.
     @ViewBuilder
-    private func questionContent(for request: ClaudeCodeManager.QuestionRequest) -> some View {
+    private func questionContent(for request: AgentQuestionRequest) -> some View {
         let leftWidth = questionLeftWingWidth(for: request)
         let rightWidth = questionRightWingWidth(for: request)
         let balanced = max(leftWidth, rightWidth)
@@ -160,7 +162,7 @@ struct ClaudeCodeLiveActivity: View {
                 .frame(width: balanced, height: notchContentHeight)
                 .background(alignment: .trailing) {
                     HStack(spacing: questionChipSpacing) {
-                        ForEach(request.question.optionLabels, id: \.self) { label in
+                        ForEach(request.optionLabels, id: \.self) { label in
                             questionChip(label: label) {
                                 manager.answerPendingQuestion(optionLabel: label)
                             }
@@ -190,15 +192,15 @@ struct ClaudeCodeLiveActivity: View {
 
     /// Prefer the short header ("Color") when present; fall back to the
     /// question text, which the left wing truncates.
-    private func questionPromptText(for request: ClaudeCodeManager.QuestionRequest) -> String {
-        request.question.header ?? request.question.question
+    private func questionPromptText(for request: AgentQuestionRequest) -> String {
+        request.header ?? request.question
     }
 
     private var maxQuestionTextWidth: CGFloat { 170 }
     private var questionChipSpacing: CGFloat { 6 }
     private var questionChipHorizontalPadding: CGFloat { 8 }
 
-    private func questionLeftWingWidth(for request: ClaudeCodeManager.QuestionRequest) -> CGFloat {
+    private func questionLeftWingWidth(for request: AgentQuestionRequest) -> CGFloat {
         let textWidth = min(
             measureTextWidth(
                 questionPromptText(for: request),
@@ -210,8 +212,8 @@ struct ClaudeCodeLiveActivity: View {
         return max(wingPadding + 15 + 5 + textWidth + 10, leftWingWidth)
     }
 
-    private func questionRightWingWidth(for request: ClaudeCodeManager.QuestionRequest) -> CGFloat {
-        let labels = request.question.optionLabels
+    private func questionRightWingWidth(for request: AgentQuestionRequest) -> CGFloat {
+        let labels = request.optionLabels
         let chipsWidth = labels.reduce(CGFloat.zero) { total, label in
             let textWidth = measureTextWidth(label, font: NSFont.systemFont(ofSize: 11, weight: .semibold))
             return total + textWidth + 2 * questionChipHorizontalPadding
@@ -220,7 +222,7 @@ struct ClaudeCodeLiveActivity: View {
         return max(wingPadding + chipsWidth + spacing + 18, 96)
     }
 
-    private func permissionLeftWingWidth(for request: ClaudeCodeManager.PermissionRequest) -> CGFloat {
+    private func permissionLeftWingWidth(for request: AgentPermissionRequest) -> CGFloat {
         let textWidth = measureTextWidth(
             request.toolName,
             font: NSFont.systemFont(ofSize: 12, weight: .semibold)
@@ -229,7 +231,7 @@ struct ClaudeCodeLiveActivity: View {
         return max(wingPadding + 15 + 5 + textWidth + 10, leftWingWidth)
     }
 
-    private func permissionRightWingWidth(for request: ClaudeCodeManager.PermissionRequest) -> CGFloat {
+    private func permissionRightWingWidth(for request: AgentPermissionRequest) -> CGFloat {
         let textWidth = min(
             measureTextWidth(
                 request.inputSummary,
@@ -243,7 +245,7 @@ struct ClaudeCodeLiveActivity: View {
     }
 
     @ViewBuilder
-    private func content(for session: ClaudeCodeManager.Session) -> some View {
+    private func content(for session: AgentSessionManager.Session) -> some View {
         let wings = wingWidths(for: session)
         HStack(spacing: 0) {
             Color.clear
@@ -272,10 +274,10 @@ struct ClaudeCodeLiveActivity: View {
         .onAppear { isPulsing = true }
     }
 
-    private func iconSection(for session: ClaudeCodeManager.Session) -> some View {
+    private func iconSection(for session: AgentSessionManager.Session) -> some View {
         let accent = accentColor(for: session)
         return ZStack {
-            Image(systemName: "asterisk")
+            Image(systemName: providerIconName(for: session))
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(accent)
                 .opacity(session.status.isBusy ? (isPulsing ? 0.4 : 1.0) : 1.0)
@@ -289,7 +291,7 @@ struct ClaudeCodeLiveActivity: View {
         .frame(width: iconDiameter, height: notchContentHeight, alignment: .center)
     }
 
-    private func statusSection(for session: ClaudeCodeManager.Session) -> some View {
+    private func statusSection(for session: AgentSessionManager.Session) -> some View {
         let accent = accentColor(for: session)
         return HStack(spacing: 5) {
             if manager.sessions.count > 1 {
@@ -316,7 +318,7 @@ struct ClaudeCodeLiveActivity: View {
 
     /// Small dimmed "m:ss" counter showing how long the current status has
     /// been running (thinking / tool / compacting).
-    private func elapsedIndicator(for session: ClaudeCodeManager.Session) -> some View {
+    private func elapsedIndicator(for session: AgentSessionManager.Session) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             Text(elapsedText(since: session.statusChangedAt, now: context.date))
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -331,7 +333,7 @@ struct ClaudeCodeLiveActivity: View {
         return String(format: "%d:%02d", minutes, seconds % 60)
     }
 
-    private func statusText(for session: ClaudeCodeManager.Session) -> String {
+    private func statusText(for session: AgentSessionManager.Session) -> String {
         switch session.status {
         case .runningTool(let tool):
             if let summary = session.toolSummary, summary != tool {
@@ -345,8 +347,12 @@ struct ClaudeCodeLiveActivity: View {
         }
     }
 
-    private func accentColor(for session: ClaudeCodeManager.Session) -> Color {
-        session.status == .waitingForInput ? .cyan : ClaudeCodeManager.accentColor
+    private func accentColor(for session: AgentSessionManager.Session) -> Color {
+        session.status == .waitingForInput ? .cyan : manager.accentColor(for: session.provider)
+    }
+
+    private func providerIconName(for session: AgentSessionManager.Session) -> String {
+        manager.provider(for: session.provider)?.iconName ?? "asterisk"
     }
 
     private var leftWingWidth: CGFloat {
@@ -357,12 +363,12 @@ struct ClaudeCodeLiveActivity: View {
     /// shift the center black segment sideways and let the hardware notch
     /// occlude the wider wing's inner content (e.g. the session-count badge).
     /// Balancing both wings to the same width keeps the center segment aligned.
-    private func wingWidths(for session: ClaudeCodeManager.Session) -> (left: CGFloat, right: CGFloat) {
+    private func wingWidths(for session: AgentSessionManager.Session) -> (left: CGFloat, right: CGFloat) {
         let balanced = max(leftWingWidth, rightWingWidth(for: session))
         return (balanced, balanced)
     }
 
-    private func rightWingWidth(for session: ClaudeCodeManager.Session) -> CGFloat {
+    private func rightWingWidth(for session: AgentSessionManager.Session) -> CGFloat {
         let textWidth = min(
             measureTextWidth(
                 statusText(for: session),

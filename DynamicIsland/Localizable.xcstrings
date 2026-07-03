@@ -8728,6 +8728,9 @@
     "Ask in the notch before Claude runs risky tools" : {
 
     },
+    "Ask in the notch before Cursor runs shell or MCP tools" : {
+
+    },
     "Ask me anything..." : {
       "localizations" : {
         "fr" : {
@@ -18602,6 +18605,9 @@
         }
       }
     },
+    "Cursor Live Activity" : {
+
+    },
     "Cursor style" : {
       "localizations" : {
         "ko" : {
@@ -24576,6 +24582,9 @@
           }
         }
       }
+    },
+    "Enable Cursor live activity" : {
+
     },
     "Enable customizable controls" : {
       "comment" : "A toggle that allows users to enable or disable customizable controls for media playback.",
@@ -56720,6 +56729,9 @@
       }
     },
     "Shows Claude Code session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.claude/hooks and registers it in Claude Code's settings.json. The permission prompt shows Allow/Deny in the notch for risky tools (e.g. Bash); question answering shows Claude's multiple-choice questions as tappable options. If you don't respond within a few seconds, Claude falls back to its normal terminal prompt." : {
+
+    },
+    "Shows Cursor agent session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.cursor/hooks and registers it in ~/.cursor/hooks.json. The permission prompt shows Allow/Deny in the notch for shell commands and MCP tool calls; if you don't respond within a few seconds, Cursor falls back to its own permission flow. Disabling the toggle keeps the hooks installed but ignores their events; uninstalling removes only Atoll-managed entries." : {
 
     },
     "Shows green camera icon and yellow microphone icon when in use. Uses event-driven CoreAudio and CoreMediaIO APIs." : {

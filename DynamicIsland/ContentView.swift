@@ -43,7 +43,7 @@ struct ContentView: View {
     @ObservedObject var musicManager = MusicManager.shared
     @ObservedObject var timerManager = TimerManager.shared
     @ObservedObject var reminderManager = ReminderLiveActivityManager.shared
-    @ObservedObject var claudeCodeManager = ClaudeCodeManager.shared
+    @ObservedObject var agentSessionManager = AgentSessionManager.shared
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var statsManager = StatsManager.shared
     @ObservedObject var recordingManager = ScreenRecordingManager.shared
@@ -65,6 +65,7 @@ struct ContentView: View {
     @Default(.showDiskGraph) var showDiskGraph
     @Default(.enableReminderLiveActivity) var enableReminderLiveActivity
     @Default(.enableClaudeCodeLiveActivity) var enableClaudeCodeLiveActivity
+    @Default(.enableCursorLiveActivity) var enableCursorLiveActivity
     @Default(.enableTimerFeature) var enableTimerFeature
     @Default(.timerDisplayMode) var timerDisplayMode
     @Default(.enableHorizontalMusicGestures) var enableHorizontalMusicGestures
@@ -564,7 +565,7 @@ struct ContentView: View {
                         // While a Claude permission prompt is showing in the
                         // closed notch, its Allow/Deny buttons own the clicks;
                         // don't let a stray tap expand the notch over them.
-                        if vm.notchState == .closed && claudeCodeManager.isPermissionPromptVisible {
+                        if vm.notchState == .closed && agentSessionManager.isPermissionPromptVisible {
                             return
                         }
                         if vm.notchState == .closed && Defaults[.enableHaptics] {
@@ -936,8 +937,8 @@ struct ContentView: View {
                           TimerLiveActivity()
                       } else if (!isCurrentScreenExpansionVisible || currentScreenExpansionType == .reminder) && vm.notchState == .closed && reminderManager.isActive && enableReminderLiveActivity && !vm.hideOnClosed {
                           ReminderLiveActivity()
-                      } else if !isCurrentScreenExpansionVisible && vm.notchState == .closed && claudeCodeManager.isActive && enableClaudeCodeLiveActivity && !vm.hideOnClosed {
-                          ClaudeCodeLiveActivity()
+                      } else if !isCurrentScreenExpansionVisible && vm.notchState == .closed && agentSessionManager.isActive && (enableClaudeCodeLiveActivity || enableCursorLiveActivity) && !vm.hideOnClosed {
+                          AgentLiveActivity()
                       } else if (!isCurrentScreenExpansionVisible || currentScreenExpansionType == .recording) && vm.notchState == .closed && (recordingManager.isRecording || !recordingManager.isRecorderIdle) && Defaults[.enableScreenRecordingDetection] && !vm.hideOnClosed && !musicPairingEligible {
                           RecordingLiveActivity()
                       } else if (!isCurrentScreenExpansionVisible || currentScreenExpansionType == .download) && vm.notchState == .closed && downloadManager.isDownloading && Defaults[.enableDownloadListener] && !vm.hideOnClosed {
@@ -1039,7 +1040,7 @@ struct ContentView: View {
                           // Claude Code sneak peek
                           else if coordinator.sneakPeek.type == .claudeCode {
                               if !vm.hideOnClosed && activeSneakPeekStyle == .standard {
-                                  let accent = (coordinator.sneakPeek.accentColor ?? ClaudeCodeManager.accentColor).ensureMinimumBrightness(factor: 0.7)
+                                  let accent = (coordinator.sneakPeek.accentColor ?? AgentSessionManager.defaultAccentColor).ensureMinimumBrightness(factor: 0.7)
                                   HStack(alignment: .center, spacing: 6) {
                                       Image(systemName: "asterisk")
                                           .font(.system(size: 12, weight: .bold))
@@ -1989,7 +1990,7 @@ struct ContentView: View {
                 guard self.isHovering else { return }
                 guard !self.handleClosedMusicWaveformTapIfNeeded() else { return }
                 // Claude permission prompt visible: leave clicks to its buttons.
-                guard !ClaudeCodeManager.shared.isPermissionPromptVisible else { return }
+                guard !AgentSessionManager.shared.isPermissionPromptVisible else { return }
                 if Defaults[.enableHaptics] {
                     self.triggerHapticIfAllowed()
                 }

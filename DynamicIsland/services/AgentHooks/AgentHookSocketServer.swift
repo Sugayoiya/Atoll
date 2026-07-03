@@ -18,54 +18,35 @@
 
 import Foundation
 
-/// A raw hook event payload sent by the Claude Code hook script.
-struct ClaudeHookEvent: Decodable, Sendable {
-    let provider: String?
-    let sessionId: String
-    let cwd: String?
-    let event: String
-    let tool: String?
-    let userPrompt: String?
-    /// Raw tool input, forwarded by the hook script for PreToolUse events
-    /// (script v3+). Shape is tool-specific, e.g. `{"command": "..."}` for Bash.
-    let toolInput: JSONValue?
-
-    enum CodingKeys: String, CodingKey {
-        case provider
-        case sessionId = "session_id"
-        case cwd, event, tool
-        case userPrompt = "user_prompt"
-        case toolInput = "tool_input"
-    }
-}
-
-/// Minimal Unix domain socket server that receives JSON events from the
-/// Claude Code hook script at `/tmp/atoll-claude.sock`.
+/// Minimal Unix domain socket server that receives `AgentHookEnvelope` JSON
+/// from provider hook scripts at `/tmp/atoll-agent.sock`.
 ///
-/// The channel is bidirectional: after decoding an event, the handler may
-/// return response bytes (a hook decision JSON) that are written back on the
-/// same client connection before it is closed. Returning `nil` closes the
-/// connection without a reply, preserving the original fire-and-forget flow.
+/// The channel is bidirectional: after decoding an envelope, the handler may
+/// return response bytes (a provider-specific decision JSON) that are written
+/// back on the same client connection before it is closed. Returning `nil`
+/// closes the connection without a reply, preserving the fire-and-forget flow.
 ///
 /// Owns its synchronization via dedicated dispatch queues.
-final class ClaudeHookSocketServer: @unchecked Sendable {
-    /// Handles a decoded hook event and optionally produces reply bytes to
-    /// send back to the hook script (which prints them to stdout for Claude).
-    typealias EventHandler = @Sendable (ClaudeHookEvent) async -> Data?
+final class AgentHookSocketServer: @unchecked Sendable {
+    /// Handles a decoded hook envelope and optionally produces reply bytes to
+    /// send back to the hook script (which prints them to stdout for the agent).
+    typealias EventHandler = @Sendable (AgentHookEnvelope) async -> Data?
 
-    static let shared = ClaudeHookSocketServer()
+    static let shared = AgentHookSocketServer()
+
+    static let socketPath = "/tmp/atoll-agent.sock"
 
     /// Upper bound for producing a reply. The hook script waits ~5s for a
     /// response; if the handler takes longer we close the connection with no
-    /// reply so the script (and Claude's normal permission flow) proceeds.
+    /// reply so the script (and the agent's normal permission flow) proceeds.
     private static let responseTimeout: TimeInterval = 4.5
 
-    private let socketPath = ClaudeHookScript.socketPath
+    private let socketPath = AgentHookSocketServer.socketPath
     private var serverSocket: Int32 = -1
     private var acceptSource: DispatchSourceRead?
     private var eventHandler: EventHandler?
-    private let serverQueue = DispatchQueue(label: "com.ebullioscopic.Atoll.claude.socket", qos: .userInitiated)
-    private let clientQueue = DispatchQueue(label: "com.ebullioscopic.Atoll.claude.socket.client", qos: .userInitiated, attributes: .concurrent)
+    private let serverQueue = DispatchQueue(label: "com.ebullioscopic.Atoll.agent.socket", qos: .userInitiated)
+    private let clientQueue = DispatchQueue(label: "com.ebullioscopic.Atoll.agent.socket.client", qos: .userInitiated, attributes: .concurrent)
 
     private init() {}
 
@@ -93,7 +74,7 @@ final class ClaudeHookSocketServer: @unchecked Sendable {
 
         serverSocket = socket(AF_UNIX, SOCK_STREAM, 0)
         guard serverSocket >= 0 else {
-            Logger.log("Claude hook socket creation failed: \(errno)", category: .error)
+            Logger.log("Agent hook socket creation failed: \(errno)", category: .error)
             return
         }
 
@@ -116,7 +97,7 @@ final class ClaudeHookSocketServer: @unchecked Sendable {
         }
 
         guard bindResult == 0 else {
-            Logger.log("Claude hook socket bind failed: \(errno)", category: .error)
+            Logger.log("Agent hook socket bind failed: \(errno)", category: .error)
             close(serverSocket)
             serverSocket = -1
             return
@@ -125,13 +106,13 @@ final class ClaudeHookSocketServer: @unchecked Sendable {
         _ = chmod(socketPath, 0o600)
 
         guard listen(serverSocket, 10) == 0 else {
-            Logger.log("Claude hook socket listen failed: \(errno)", category: .error)
+            Logger.log("Agent hook socket listen failed: \(errno)", category: .error)
             close(serverSocket)
             serverSocket = -1
             return
         }
 
-        Logger.log("Claude hook socket listening at \(socketPath)", category: .network)
+        Logger.log("Agent hook socket listening at \(socketPath)", category: .network)
 
         acceptSource = DispatchSource.makeReadSource(fileDescriptor: serverSocket, queue: serverQueue)
         acceptSource?.setEventHandler { [weak self] in
@@ -164,7 +145,7 @@ final class ClaudeHookSocketServer: @unchecked Sendable {
                 let acceptError = errno
                 if acceptError == EINTR { continue }
                 if acceptError == EAGAIN || acceptError == EWOULDBLOCK { return }
-                Logger.log("Claude hook socket accept failed: \(acceptError)", category: .error)
+                Logger.log("Agent hook socket accept failed: \(acceptError)", category: .error)
                 return
             }
 
@@ -209,30 +190,30 @@ final class ClaudeHookSocketServer: @unchecked Sendable {
         }
 
         guard !allData.isEmpty,
-              let event = try? JSONDecoder().decode(ClaudeHookEvent.self, from: allData),
+              let envelope = try? JSONDecoder().decode(AgentHookEnvelope.self, from: allData),
               let eventHandler else {
             return
         }
 
         // Bridge the async handler onto this blocking client-queue thread,
         // bounded so a stalled handler never leaves the hook script hanging.
-        let response = awaitResponse(for: event, eventHandler: eventHandler)
+        let response = awaitResponse(for: envelope, eventHandler: eventHandler)
 
         if let response, !response.isEmpty {
             writeAll(response, to: clientSocket)
         }
     }
 
-    private static func awaitResponse(for event: ClaudeHookEvent, eventHandler: @escaping EventHandler) -> Data? {
+    private static func awaitResponse(for envelope: AgentHookEnvelope, eventHandler: @escaping EventHandler) -> Data? {
         let box = ResponseBox()
         let semaphore = DispatchSemaphore(value: 0)
         Task {
-            let result = await eventHandler(event)
+            let result = await eventHandler(envelope)
             box.store(result)
             semaphore.signal()
         }
         guard semaphore.wait(timeout: .now() + responseTimeout) == .success else {
-            Logger.log("Claude hook handler timed out; closing connection with no decision", category: .warning)
+            Logger.log("Agent hook handler timed out; closing connection with no decision", category: .warning)
             return nil
         }
         return box.take()
@@ -250,7 +231,7 @@ final class ClaudeHookSocketServer: @unchecked Sendable {
                     continue
                 }
                 if errno == EINTR { continue }
-                Logger.log("Claude hook socket reply write failed: \(errno)", category: .error)
+                Logger.log("Agent hook socket reply write failed: \(errno)", category: .error)
                 return
             }
         }
