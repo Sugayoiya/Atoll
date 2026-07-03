@@ -70,3 +70,38 @@ PoC verified interactive-mode AskUserQuestion pre-answering (allow+updatedInput)
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Verify Cursor hooks live activity integration & finish task
+
+**Date**: 2026-07-04
+**Task**: Verify Cursor hooks live activity integration & finish task
+**Branch**: `feat/claude-code-live-activity`
+
+### Summary
+
+Verified the provider-agnostic AgentHooks refactor + Cursor provider end-to-end. Xcode Debug build SUCCEEDED. Socket-level e2e against the running Atoll (PID on /tmp/atoll-agent.sock): fire-and-forget events (sessionStart/postToolUse) return in ~0s while permission events (beforeShellExecution/beforeMCPExecution, and Claude PreToolUse) wait exactly 4.0s UI-timeout then fail-open with no reply — proving the prompt-wait path and timeout chain (UI 4.0s < server 4.5s < script recv 5s < hook timeout 10s). Verified ~/.cursor/hooks.json install spec (8 fire-and-forget display events + 2 permission events with timeout:10) and uninstall idempotency (all 10 Atoll entries pruned, user's own hooks preserved). Claude regression confirmed identical behavior on the shared socket. All 6 acceptance criteria checked (3 GUI items confirmed manually by user). Task archived.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e187c5f` | (see git log) |
+| `5a29f02` | (see git log) |
+| `229c976` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
