@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "System-layer index + pre-dev checklist; task touches services/managers"}
+{"file": ".trellis/spec/backend/claude-hook-socket-protocol.md", "reason": "Existing hook socket contract being generalized; timeout chain invariant and reply schemas must be preserved"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Where the new AgentHooks services/managers files must live and naming conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Concurrency rules (MainActor, dispatch queues) relevant to socket server + manager refactor"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Logger.log conventions for new installer/socket/adapter code"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Live Activity view pattern for the generalized agent live activity"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Singleton manager + Defaults + Combine conventions for AgentSessionManager and new toggles"}
+{"file": ".trellis/tasks/07-03-cursor-hooks-interactive/research/cursor-hooks-reference.md", "reason": "Cursor hooks event schemas, permission reply format, hooks.json config semantics, Claude-vs-Cursor mapping table"}
