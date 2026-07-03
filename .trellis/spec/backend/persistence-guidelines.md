@@ -50,8 +50,8 @@ For retaining access to user-picked files across launches, use security-scoped b
 
 ## Other Persistence-Adjacent Paths
 
-- Unix socket for Claude Code hooks: `/tmp/atoll-claude.sock`
-  (`services/ClaudeCode/ClaudeHookSocketServer.swift`) — ephemeral, not persistence.
+- Unix socket for agent hooks (Claude Code, Cursor): `/tmp/atoll-agent.sock`
+  (`services/AgentHooks/AgentHookSocketServer.swift`) — ephemeral, not persistence.
 
 ---
 

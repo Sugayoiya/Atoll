@@ -25,10 +25,10 @@ the category (`category.defaultLevel`), not passed by the caller:
 Logger.log("Claude hook socket bind failed: \(errno)", category: .error)
 ```
 
-(real call from `services/ClaudeCode/ClaudeHookSocketServer.swift`)
+(real call from `services/AgentHooks/AgentHookSocketServer.swift`)
 
-Good adopters to copy from: `services/ClaudeCode/ClaudeHookSocketServer.swift`,
-`services/Extensions/ExtensionXPCServiceHost.swift`, `managers/ClaudeCodeManager.swift`.
+Good adopters to copy from: `services/AgentHooks/AgentHookSocketServer.swift`,
+`services/Extensions/ExtensionXPCServiceHost.swift`, `managers/AgentSessionManager.swift`.
 
 ---
 

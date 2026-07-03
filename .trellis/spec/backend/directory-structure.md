@@ -8,9 +8,9 @@
 
 | Directory | Role | Examples |
 |-----------|------|----------|
-| `DynamicIsland/managers/` | App-level singletons: coordinators, system observers, window managers, feature state machines (~64 files) | `managers/TimerManager.swift`, `managers/SystemHUDManager.swift`, `managers/ClaudeCodeManager.swift` |
+| `DynamicIsland/managers/` | App-level singletons: coordinators, system observers, window managers, feature state machines (~64 files) | `managers/TimerManager.swift`, `managers/SystemHUDManager.swift`, `managers/AgentSessionManager.swift` |
 | `DynamicIsland/managers/Extensions/` | Managers for the third-party extension system | `managers/Extensions/ExtensionLiveActivityManager.swift` |
-| `DynamicIsland/services/` | Cross-process / network infrastructure (sockets, XPC, WebSocket RPC) | `services/ClaudeCode/ClaudeHookSocketServer.swift`, `services/Extensions/ExtensionXPCServiceHost.swift`, `services/Extensions/ExtensionRPCServer.swift` |
+| `DynamicIsland/services/` | Cross-process / network infrastructure (sockets, XPC, WebSocket RPC) | `services/AgentHooks/AgentHookSocketServer.swift`, `services/Extensions/ExtensionXPCServiceHost.swift`, `services/Extensions/ExtensionRPCServer.swift` |
 | `DynamicIsland/helpers/` | Low-level building blocks without UI: private-API bridges, permission stores, script runners | `helpers/DisplayServicesDynamic.swift`, `helpers/CoreBrightnessDisplayClient.swift`, `helpers/AppleScriptRunner.swift` |
 | `DynamicIsland/utils/` | Hardware/system metrics and the shared logger | `utils/SMC.swift`, `utils/IOReportBridging.swift`, `utils/Logger.swift` |
 | `DynamicIsland/MediaControllers/` | Adapter layer implementing `MediaControllerProtocol`, selected by `MusicManager` | `MediaControllers/AppleMusicController.swift`, `MediaControllers/NowPlayingController.swift` |
@@ -27,14 +27,14 @@
 - Holds `@Published` state consumed by SwiftUI views or drives a Live Activity.
 - Runs for the app's lifetime and subscribes to `Defaults.publisher` / `NotificationCenter`.
 - Pattern: `static let shared` + `private init()`; start/stop driven by a Defaults toggle
-  (`managers/ClaudeCodeManager.swift` watches `.enableClaudeCodeLiveActivity`).
+  (`managers/AgentSessionManager.swift` watches `.enableClaudeCodeLiveActivity`).
 - When it needs the coordinator or view model, add an explicit `configure(...)` method instead
   of init injection (`SystemHUDManager.setup(coordinator:)`, `LockScreenManager.configure(viewModel:)`).
 
 **Create a Service** (`services/<Domain>/...`) when the code sits at a process or network
 boundary: it listens on a socket/XPC/WebSocket and encodes/decodes messages. Services do not
 hold SwiftUI state; they call back into a manager which updates the UI
-(`ClaudeHookSocketServer` → callback → `ClaudeCodeManager`).
+(`AgentHookSocketServer` → callback → `AgentSessionManager`).
 
 If the service exists only to support one UI feature, keep it inside that feature's folder
 instead: `components/Shelf/Services/`.
@@ -54,7 +54,7 @@ HUD subsystem is set up, and conditional managers (`ScreenRecordingManager`,
 manager that must run at launch, wire it there — do not add ad-hoc bootstrapping in views.
 
 Some managers self-start lazily instead: they subscribe to their feature toggle in `init`
-and call `start()/stop()` on change (`ClaudeCodeManager`, `SystemHUDManager`). Prefer this
+and call `start()/stop()` on change (`AgentSessionManager`, `SystemHUDManager`). Prefer this
 pattern for optional features so disabled features cost nothing.
 
 ---

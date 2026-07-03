@@ -11,18 +11,18 @@
 The codebase mixes GCD, Combine, and async/await. Follow the local division of labor:
 
 - **UI-facing state**: mark the manager `@MainActor` when practical
-  (`managers/ClaudeCodeManager.swift`, `services/Extensions/ExtensionXPCServiceHost.swift`,
+  (`managers/AgentSessionManager.swift`, `services/Extensions/ExtensionXPCServiceHost.swift`,
   `components/Shelf/Services/LocalSendService.swift`). From a background callback, hop with
   `Task { @MainActor in ... }` — not `DispatchQueue.main.async` in new code.
 - **Blocking I/O** (sockets, audio): dedicated `DispatchQueue` with a descriptive label
   plus `DispatchSource` for non-blocking accept
-  (`services/ClaudeCode/ClaudeHookSocketServer.swift`).
+  (`services/AgentHooks/AgentHookSocketServer.swift`).
 - **Settings reactions**: Combine `Defaults.publisher(...).sink`, cancellables stored on
   the manager (`managers/SystemHUDManager.swift`).
 - **New network / scripting code**: prefer `async/await`
   (`components/Shelf/Services/LocalSendService.swift`, `managers/AppleNotesSyncManager.swift`).
 - `@unchecked Sendable` is acceptable only for classes that genuinely confine state to a
-  private queue, as `ClaudeHookSocketServer` does — document why in a comment.
+  private queue, as `AgentHookSocketServer` does — document why in a comment.
 
 ---
 
@@ -31,7 +31,7 @@ The codebase mixes GCD, Combine, and async/await. Follow the local division of l
 - `static let shared` + `private init()` is the standard manager shape. Keep `init` cheap;
   heavy setup goes in `start()` / `configure(...)` so disabled features cost nothing.
 - Feature managers must be toggleable: subscribe to their Defaults key and start/stop on
-  change (`ClaudeCodeManager`). Never assume a feature is always on.
+  change (`AgentSessionManager`). Never assume a feature is always on.
 
 ---
 

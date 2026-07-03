@@ -1,36 +1,59 @@
-# Claude Code Hook ↔ Atoll Socket Protocol (Code-Spec)
+# Agent Hook ↔ Atoll Socket Protocol (Code-Spec)
 
-> Executable contract for the bidirectional Unix-socket channel between the
-> installed Claude Code hook script and Atoll's in-app socket server.
-> Established in task 07-02-claude-interactive.
+> Executable contract for the bidirectional Unix-socket channel between
+> installed agent hook scripts (Claude Code and Cursor) and Atoll's
+> in-app socket server. Established in task 07-02-claude-interactive;
+> generalized to the provider-agnostic envelope + Cursor provider in
+> 07-03-cursor-hooks-interactive.
 
 ## 1. Scope / Trigger
 
-Cross-layer request/response contract: bash/python hook script (installed to
-`~/.claude/hooks/`) ↔ `ClaudeHookSocketServer` ↔ `ClaudeCodeManager` ↔ notch UI.
-Any change to event fields, reply schema, or timeout values MUST update this doc
-and bump the script version marker.
+Cross-layer request/response contract: bash/python hook script (Claude:
+installed to `~/.claude/hooks/`) ↔ `AgentHookSocketServer` ↔
+`AgentSessionManager` (+ per-provider `AgentProvider` adapter) ↔ notch UI.
+Any change to envelope fields, reply schema, or timeout values MUST update this
+doc and bump the affected script version marker.
 
 ## 2. Signatures
 
-- Socket: `AF_UNIX` `SOCK_STREAM` at `/tmp/atoll-claude.sock`, `chmod 0600`.
-- Server handler: `typealias EventHandler = (ClaudeHookEvent) async -> Data?`
-  — return `nil` = no decision (fire-and-forget parity); return encoded
-  `ClaudeHookResponse` bytes = decision written back on the SAME client fd.
-- Script (embedded in `ClaudeHookScript.swift`, version marker `atoll-hook-version: N`):
-  - All events: connect (1s timeout) → send event JSON.
+- Socket: `AF_UNIX` `SOCK_STREAM` at `/tmp/atoll-agent.sock`, `chmod 0600`.
+- Server handler: `typealias EventHandler = (AgentHookEnvelope) async -> Data?`
+  — return `nil` = no decision (fire-and-forget parity); return the provider's
+  encoded reply bytes = decision written back on the SAME client fd.
+- Claude script (embedded in `ClaudeHookScript.swift`, version marker
+  `atoll-hook-version: N`, currently v4):
+  - All events: connect (1s timeout) → send envelope JSON.
   - `PreToolUse` only: `shutdown(SHUT_WR)` (half-close signals EOF to server) →
     `recv()` with 5s timeout → if reply parses as JSON, print to stdout, exit 0;
     else exit 0 with NO stdout output.
   - Non-PreToolUse events: `close()` immediately after send (never wait).
+- Cursor script (embedded in `CursorHookScript.swift`, version marker
+  `atoll-cursor-hook-version: N`, currently v2; installed to
+  `~/.cursor/hooks/`, registered in `~/.cursor/hooks.json`):
+  - Same envelope send; ONLY `beforeShellExecution` / `beforeMCPExecution` do
+    the reply dance (`shutdown(SHUT_WR)` → 5s recv → JSON-validate → stdout);
+    all other events (incl. `preToolUse`) are fire-and-forget.
+  - The hooks.json entries for those two events carry an explicit
+    `"timeout": 10` (seconds); display-event entries have no timeout override.
 
 ## 3. Contracts
 
-Event JSON (script → Atoll), fields: `provider`, `session_id`, `cwd`, `event`,
-`tool`, `user_prompt`, and for PreToolUse `tool_input` (raw tool input dict,
-serialized via `json.dumps`, decoded into `JSONValue?`).
+Wire envelope (script → Atoll), all providers:
 
-Reply JSON (Atoll → script → Claude stdout) — `ClaudeHookResponse`:
+```json
+{ "provider": "claude", "event": "<provider-native event name>", "payload": { "...": "provider's RAW hook stdin JSON, untouched" } }
+```
+
+Normalization happens in Swift only: each provider's `AgentProvider` adapter
+maps `payload` → normalized `AgentEvent` and encodes generic `AgentDecision`s
+into the provider's reply schema. Scripts stay thin forwarders.
+
+For Claude, `payload` carries Claude's raw hook input (`session_id`, `cwd`,
+`hook_event_name`, `tool_name`, `tool_input`, `prompt`, ...), decoded via
+`JSONValue`.
+
+Reply JSON is provider-specific, built by the provider adapter's decision
+encoder. Claude (Atoll → script → Claude stdout) — `ClaudeHookResponse`:
 
 ```json
 {
@@ -60,6 +83,24 @@ Reply JSON (Atoll → script → Claude stdout) — `ClaudeHookResponse`:
   or total >40 chars, duplicate option labels, feature toggle off, empty
   `session_id`, a second prompt while one is pending.
 
+Cursor (Atoll → script → Cursor stdout) — flat schema, NO `hookSpecificOutput`
+nesting; only for `beforeShellExecution` / `beforeMCPExecution`:
+
+```json
+{
+  "permission": "allow | deny",
+  "user_message": "optional string, shown to the user",
+  "agent_message": "optional string, shown to the agent"
+}
+```
+
+- `ask` is tolerated by Cursor's schema but Atoll never sends it — the generic
+  `.ask` decision encodes to no reply (identical to a timeout, fail-open).
+- Cursor identity: `conversation_id` plays the role of `session_id`;
+  `workspace_roots[0]` serves as the display cwd.
+- Cursor `preToolUse` output tolerates `ask` but does NOT enforce it — the two
+  before*Execution hooks are the only permission-control path.
+
 ## 4. Validation & Error Matrix
 
 | Condition | Behavior |
@@ -70,9 +111,11 @@ Reply JSON (Atoll → script → Claude stdout) — `ClaudeHookResponse`:
 | Handler returns `nil` | Server closes fd immediately (fire-and-forget parity) |
 | Event has empty `session_id` | Manager ignores it for permission prompts (no invisible pending state) |
 | Second PreToolUse while one prompt pending | New one resolves to `nil` immediately |
+| Cursor: no reply within 5s recv / invalid JSON | Script exits 0, no stdout → Cursor runs its own permission flow (fail-open) |
 
 **Timeout chain invariant (MUST hold)**: UI budget 4.0s < server semaphore 4.5s
-< script recv 5s < Claude hook default timeout (60s). The notch is an
+< script recv 5s < host hook timeout (Claude default 60s; Cursor: explicit
+`"timeout": 10` on the two permission entries in hooks.json). The notch is an
 accelerator, never a blocker — every path ends in `exit 0`.
 
 ## 5. Good/Base/Bad Cases
