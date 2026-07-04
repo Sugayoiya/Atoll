@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端规范索引，用于审查 tab 页 UI 实现"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端规范索引，用于审查 AgentSessionManager 改动"}
+{"file": ".trellis/spec/backend/claude-hook-socket-protocol.md", "reason": "校验 pending/超时改动未破坏 socket 协议"}
+{"file": ".trellis/tasks/07-04-agent-activity-tab/research/agent-activity-architecture.md", "reason": "现状与改造要点，审查时对照"}

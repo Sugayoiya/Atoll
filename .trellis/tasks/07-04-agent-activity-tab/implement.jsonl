@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端（SwiftUI notch UI）编码规范索引，tab 页与列表 UI 实现前必读"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端（manager/service 层）编码规范索引，AgentSessionManager 改造前必读"}
+{"file": ".trellis/spec/backend/claude-hook-socket-protocol.md", "reason": "hook socket 协议契约，改动 pending/超时行为时必须保持兼容"}
+{"file": ".trellis/tasks/07-04-agent-activity-tab/research/agent-activity-architecture.md", "reason": "现状调研：agent 链路、tab 机制、多 session 模型与改造要点"}
