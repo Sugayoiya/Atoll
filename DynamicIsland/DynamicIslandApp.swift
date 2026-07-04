@@ -454,17 +454,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             baseSize.height = min(screenHeight * maxFraction, max(300, screenHeight * maxFraction))
         }
         
-        let adjustedContentSize = statsAdjustedNotchSize(
+        var adjustedContentSize = statsAdjustedNotchSize(
             from: baseSize,
             isStatsTabActive: coordinator.currentView == .stats,
             secondRowProgress: coordinator.statsSecondRowExpansion
         )
-        var result = addShadowPadding(
+        // Screen-height cap is applied inside agentsAdjustedNotchSize.
+        adjustedContentSize = agentsAdjustedNotchSize(
+            from: adjustedContentSize,
+            isAgentsTabActive: coordinator.currentView == .agents,
+            sessionCount: AgentSessionManager.shared.sessions.count,
+            pendingCount: AgentSessionManager.shared.pendingPrompts.count
+        )
+        return addShadowPadding(
             to: adjustedContentSize,
             isMinimalistic: Defaults[.enableMinimalisticUI]
         )
-
-        return result
     }
 
     /// Adjusts a base notch size for a specific screen by adding Dynamic Island
@@ -670,6 +675,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }.store(in: &cancellables)
 
         MemoryUsageMonitor.shared.startMonitoring()
+
+        // Observe agent session / pending prompt count changes so the notch
+        // window grows/shrinks while the Agents tab is showing.
+        AgentSessionManager.shared.$sessions
+            .map(\.count)
+            .combineLatest(AgentSessionManager.shared.$pendingPrompts.map(\.count))
+            .removeDuplicates(by: ==)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _, _ in
+                guard let self, self.coordinator.currentView == .agents else { return }
+                self.debouncedUpdateWindowSize()
+            }
+            .store(in: &cancellables)
 
         ReminderLiveActivityManager.shared.$activeWindowReminders
             .receive(on: RunLoop.main)
