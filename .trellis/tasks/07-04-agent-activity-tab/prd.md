@@ -32,6 +32,14 @@ Agent live activity 目前只在闭合 notch 的左右 wing 上展示交互（pe
 * Agent tab 仅在存在活跃 session 时出现在 tab 栏（无 agent 时不占空间）
 * 存在 pending 请求时，notch 展开（hover 或点击）自动切换到 Agent tab
 
+### 增量需求：多 session 时 notch 高度自适应（Stats 模式）
+
+* 仿照 `statsAdjustedNotchSize()`（`DynamicIsland/sizing/matters.swift`）新增 `agentsAdjustedNotchSize(from:isAgentsTabActive:sessionCount:pendingCount:)`
+* 行高常量化（普通行约 44pt；pending 内联展开行约 100–110pt 取统一值）+ 行距 8pt；基础高度 200 约容纳 2 普通行 + 1 pending 行，超出按需加高
+* 必须设加高上限（最多加高 2~3 行，且遵守 `DynamicIslandApp` 已有的屏高比例限制），超过上限用现有 ScrollView 滚动兜底
+* 在 `DynamicIslandViewModel.notchSize` 与 `DynamicIslandApp.swift`（约 457 行）两处 `statsAdjustedNotchSize` 调用旁同样链上 agents 调整（与 stats 互斥于 `currentView`，不叠加）
+* 动画按 session/pending 数量离散取值即可，依赖现有窗口尺寸变化动画
+
 ## Acceptance Criteria
 
 * [ ] 有活跃 agent session 时 tab 栏出现 Agent tab；session 全部结束后消失

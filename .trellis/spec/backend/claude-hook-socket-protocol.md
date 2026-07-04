@@ -21,20 +21,22 @@ doc and bump the affected script version marker.
   — return `nil` = no decision (fire-and-forget parity); return the provider's
   encoded reply bytes = decision written back on the SAME client fd.
 - Claude script (embedded in `ClaudeHookScript.swift`, version marker
-  `atoll-hook-version: N`, currently v4):
+  `atoll-hook-version: N`, currently v5):
   - All events: connect (1s timeout) → send envelope JSON.
   - `PreToolUse` only: `shutdown(SHUT_WR)` (half-close signals EOF to server) →
-    `recv()` with 5s timeout → if reply parses as JSON, print to stdout, exit 0;
+    `recv()` with 70s timeout → if reply parses as JSON, print to stdout, exit 0;
     else exit 0 with NO stdout output.
   - Non-PreToolUse events: `close()` immediately after send (never wait).
+  - Claude's settings.json hook entries carry an explicit `"timeout": 80`
+    (seconds) because the 70s recv exceeds Claude's 60s default hook timeout.
 - Cursor script (embedded in `CursorHookScript.swift`, version marker
-  `atoll-cursor-hook-version: N`, currently v2; installed to
+  `atoll-cursor-hook-version: N`, currently v3; installed to
   `~/.cursor/hooks/`, registered in `~/.cursor/hooks.json`):
   - Same envelope send; ONLY `beforeShellExecution` / `beforeMCPExecution` do
-    the reply dance (`shutdown(SHUT_WR)` → 5s recv → JSON-validate → stdout);
+    the reply dance (`shutdown(SHUT_WR)` → 70s recv → JSON-validate → stdout);
     all other events (incl. `preToolUse`) are fire-and-forget.
   - The hooks.json entries for those two events carry an explicit
-    `"timeout": 10` (seconds); display-event entries have no timeout override.
+    `"timeout": 80` (seconds); display-event entries have no timeout override.
 
 ## 3. Contracts
 
@@ -81,7 +83,9 @@ encoder. Claude (Atoll → script → Claude stdout) — `ClaudeHookResponse`:
 - Notch answer fallback matrix (all resolve `nil` → terminal answers normally):
   multi-question payloads, `multiSelect=true`, >4 or <2 options, label >16 chars
   or total >40 chars, duplicate option labels, feature toggle off, empty
-  `session_id`, a second prompt while one is pending.
+  `session_id`, a second prompt while one is pending FOR THE SAME session
+  (pending prompts are per-session since 07-04; different sessions can wait
+  concurrently and are answered from the expanded-notch Agents tab).
 
 Cursor (Atoll → script → Cursor stdout) — flat schema, NO `hookSpecificOutput`
 nesting; only for `beforeShellExecution` / `beforeMCPExecution`:
@@ -105,24 +109,27 @@ nesting; only for `beforeShellExecution` / `beforeMCPExecution`:
 
 | Condition | Behavior |
 |---|---|
-| No reply within script's 5s recv timeout | Script exits 0, no stdout → Claude runs normal permission flow |
-| Server handler exceeds 4.5s semaphore window | Server closes fd without reply (same as above) |
+| No reply within script's 70s recv timeout | Script exits 0, no stdout → Claude runs normal permission flow |
+| Server handler exceeds 65s semaphore window | Server closes fd without reply (same as above) |
 | Reply bytes fail `json.loads` (truncated write) | Script silently discards, exits 0 |
 | Handler returns `nil` | Server closes fd immediately (fire-and-forget parity) |
 | Event has empty `session_id` | Manager ignores it for permission prompts (no invisible pending state) |
-| Second PreToolUse while one prompt pending | New one resolves to `nil` immediately |
-| Cursor: no reply within 5s recv / invalid JSON | Script exits 0, no stdout → Cursor runs its own permission flow (fail-open) |
+| Second PreToolUse while a prompt pending for the SAME session | New one resolves to `nil` immediately (other sessions unaffected) |
+| Cursor: no reply within 70s recv / invalid JSON | Script exits 0, no stdout → Cursor runs its own permission flow (fail-open) |
 
-**Timeout chain invariant (MUST hold)**: UI budget 4.0s < server semaphore 4.5s
-< script recv 5s < host hook timeout (Claude default 60s; Cursor: explicit
-`"timeout": 10` on the two permission entries in hooks.json). The notch is an
-accelerator, never a blocker — every path ends in `exit 0`.
+**Timeout chain invariant (MUST hold)**: UI budget 60s < server semaphore 65s
+< script recv 70s < host hook timeout (Claude: explicit `"timeout": 80` on the
+installed hook entries; Cursor: explicit `"timeout": 80` on the two permission
+entries in hooks.json). The notch gives the user time to answer from the
+Agents tab, but every path still ends in `exit 0` and falls back to the
+provider's native flow.
 
 ## 5. Good/Base/Bad Cases
 
-- Good: user taps Allow in 2s → reply written in window → Claude skips prompt.
-- Base: user ignores prompt → 4s UI timeout → nil → terminal prompts normally.
-- Bad (guarded): server writes half a reply then closes at 4.5s → script's
+- Good: user expands the notch, taps Allow in the Agents tab → reply written
+  in window → Claude skips prompt.
+- Base: user ignores prompt → 60s UI timeout → nil → terminal prompts normally.
+- Bad (guarded): server writes half a reply then closes at 65s → script's
   JSON-validity check discards it → terminal flow unaffected.
 
 ## 6. Tests Required
@@ -154,7 +161,7 @@ send(event_json); reply = sock.recv(...)
 send(event_json)
 if event == "PreToolUse":
     sock.shutdown(SHUT_WR)   # half-close so server sees EOF and can reply
-    reply = recv_with_timeout(5)
+    reply = recv_with_timeout(70)
     if is_valid_json(reply): print(reply)
 sock.close(); sys.exit(0)
 ```
@@ -167,6 +174,8 @@ sock.close(); sys.exit(0)
   concurrent client queue, never the main thread; the `@MainActor` handler runs
   in a detached Task and signals the semaphore (an abandoned post-timeout signal
   is harmless).
-- **Prompt visibility gating**: tap guards key off actual on-screen visibility
-  (`isPermissionPromptVisible`, reported via onAppear/onDisappear), NOT off
-  pending state — higher-priority live activities can hide the prompt.
+- **Prompts answered in the Agents tab** (since 07-04): the closed-notch live
+  activity only shows status; expanding the notch while any prompt is pending
+  auto-switches to the Agents tab where each session's Allow/Deny or question
+  options are answered inline. The old closed-notch tap guard
+  (`isPermissionPromptVisible`) is gone — clicks/hovers now expand the notch.
