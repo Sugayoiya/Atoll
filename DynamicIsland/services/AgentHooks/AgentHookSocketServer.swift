@@ -36,10 +36,11 @@ final class AgentHookSocketServer: @unchecked Sendable {
 
     static let socketPath = "/tmp/atoll-agent.sock"
 
-    /// Upper bound for producing a reply. The hook script waits ~5s for a
+    /// Upper bound for producing a reply. The hook script waits ~70s for a
     /// response; if the handler takes longer we close the connection with no
     /// reply so the script (and the agent's normal permission flow) proceeds.
-    private static let responseTimeout: TimeInterval = 4.5
+    /// Chain invariant: UI 60s < server 65s < script recv 70s < host hook timeout.
+    private static let responseTimeout: TimeInterval = 65
 
     private let socketPath = AgentHookSocketServer.socketPath
     private var serverSocket: Int32 = -1

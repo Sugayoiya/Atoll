@@ -37,12 +37,12 @@ enum CursorHookInstaller {
 
     /// Permission-control events: the script waits (bounded) for a decision
     /// reply, so the hooks.json entry gets an explicit timeout preserving the
-    /// chain invariant UI 4.0s < server 4.5s < script recv 5s < hook timeout 10s.
+    /// chain invariant UI 60s < server 65s < script recv 70s < hook timeout 80s.
     private static let permissionEvents: [String] = [
         "beforeShellExecution",
         "beforeMCPExecution",
     ]
-    private static let permissionEventTimeoutSeconds = 10
+    private static let permissionEventTimeoutSeconds = 80
 
     private static var hookEvents: [String] { displayEvents + permissionEvents }
 

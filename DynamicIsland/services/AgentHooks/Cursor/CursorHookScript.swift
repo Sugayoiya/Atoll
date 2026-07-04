@@ -39,12 +39,14 @@ enum CursorHookScript {
     /// v2: beforeShellExecution/beforeMCPExecution wait (bounded) for a flat
     /// `{permission, ...}` decision reply and print it to stdout; every other
     /// event stays fire-and-forget.
-    static let version = 2
+    /// v3: permission recv timeout raised 5s → 70s so the user can answer the
+    /// prompt from the expanded-notch Agents tab (UI budget 60s).
+    static let version = 3
 
     static let contents = #"""
 #!/bin/bash
 # Atoll Hook - forwards Cursor events to Atoll via Unix socket
-# atoll-cursor-hook-version: 2 (envelope wire format {provider, event, payload})
+# atoll-cursor-hook-version: 3 (envelope wire format {provider, event, payload})
 
 SOCKET_PATH="/tmp/atoll-agent.sock"
 
@@ -82,7 +84,7 @@ try:
         # Half-close the write side so Atoll sees EOF, then wait (bounded)
         # for the optional reply.
         sock.shutdown(socket.SHUT_WR)
-        sock.settimeout(5)
+        sock.settimeout(70)
         while True:
             chunk = sock.recv(4096)
             if not chunk:

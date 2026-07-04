@@ -34,6 +34,8 @@ enum ClaudeHookInstaller {
         "SessionEnd",
     ]
 
+    private static let hookTimeoutSeconds = 80
+
     static var claudeConfigDirectory: URL {
         if let custom = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"], !custom.isEmpty {
             return URL(fileURLWithPath: custom, isDirectory: true)
@@ -138,7 +140,15 @@ enum ClaudeHookInstaller {
             json = existing
         }
 
-        let hookEntry: [[String: Any]] = [["type": "command", "command": ClaudeHookScript.hookCommand]]
+        // Explicit per-command timeout: the script blocks up to 70s waiting
+        // for a PreToolUse decision, which exceeds Claude's 60s default.
+        // Chain invariant: UI 60s < server 65s < script recv 70s < hook timeout 80s.
+        // Harmless on fire-and-forget events (the script exits immediately).
+        let hookEntry: [[String: Any]] = [[
+            "type": "command",
+            "command": ClaudeHookScript.hookCommand,
+            "timeout": hookTimeoutSeconds,
+        ]]
         var hooks = json["hooks"] as? [String: Any] ?? [:]
 
         for event in hookEvents {
@@ -156,6 +166,9 @@ enum ClaudeHookInstaller {
                         didUpdateEntry = true
                         if cmd != ClaudeHookScript.hookCommand {
                             entryHooks[hookIndex]["command"] = ClaudeHookScript.hookCommand
+                        }
+                        if (entryHooks[hookIndex]["timeout"] as? Int) != hookTimeoutSeconds {
+                            entryHooks[hookIndex]["timeout"] = hookTimeoutSeconds
                         }
                     }
                     if didUpdateEntry {
