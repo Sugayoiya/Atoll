@@ -38,210 +38,10 @@ struct AgentLiveActivity: View {
     }
 
     var body: some View {
-        if let request = manager.pendingQuestion {
-            questionContent(for: request)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                // Same tap-guard contract as the permission prompt: the
-                // option chips own clicks only while actually on screen.
-                .onAppear { manager.setPermissionPromptVisible(true) }
-                .onDisappear { manager.setPermissionPromptVisible(false) }
-        } else if let request = manager.pendingPermission {
-            permissionContent(for: request)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                // Report on-screen state so the closed-notch tap guard only
-                // swallows clicks while the Allow/Deny buttons are visible.
-                .onAppear { manager.setPermissionPromptVisible(true) }
-                .onDisappear { manager.setPermissionPromptVisible(false) }
-        } else if let session = manager.primarySession {
+        if let session = manager.primarySession {
             content(for: session)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
-    }
-
-    // MARK: - Permission prompt (Allow / Deny)
-
-    @ViewBuilder
-    private func permissionContent(for request: AgentPermissionRequest) -> some View {
-        let leftWidth = permissionLeftWingWidth(for: request)
-        let rightWidth = permissionRightWingWidth(for: request)
-        let balanced = max(leftWidth, rightWidth)
-        HStack(spacing: 0) {
-            Color.clear
-                .frame(width: balanced, height: notchContentHeight)
-                .background(alignment: .leading) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "shield.lefthalf.filled")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.orange)
-                        Text(request.toolName)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.orange)
-                            .lineLimit(1)
-                    }
-                    .padding(.leading, wingPadding / 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                }
-
-            Rectangle()
-                .fill(.black)
-                .frame(width: vm.closedNotchSize.width, height: notchContentHeight)
-
-            Color.clear
-                .frame(width: balanced, height: notchContentHeight)
-                .background(alignment: .trailing) {
-                    HStack(spacing: 7) {
-                        Text(request.inputSummary)
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.85))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: maxPermissionSummaryWidth, alignment: .trailing)
-                        permissionButton(systemName: "checkmark.circle.fill", tint: .green) {
-                            manager.answerPendingPermission(allow: true)
-                        }
-                        permissionButton(systemName: "xmark.circle.fill", tint: .red) {
-                            manager.answerPendingPermission(allow: false)
-                        }
-                    }
-                    .padding(.trailing, wingPadding / 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-                }
-                .clipped()
-        }
-        .frame(width: balanced + vm.closedNotchSize.width + balanced, height: notchContentHeight, alignment: .center)
-    }
-
-    private func permissionButton(systemName: String, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(tint)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var maxPermissionSummaryWidth: CGFloat { 170 }
-
-    // MARK: - Question prompt (option chips, Claude-only today)
-
-    /// Question wing layout: header/question text on the left wing, the
-    /// answer options as compact tappable chips on the right wing. Inputs
-    /// that can't fit this layout never reach the UI — they are filtered by
-    /// the provider adapter and answered in the terminal instead.
-    @ViewBuilder
-    private func questionContent(for request: AgentQuestionRequest) -> some View {
-        let leftWidth = questionLeftWingWidth(for: request)
-        let rightWidth = questionRightWingWidth(for: request)
-        let balanced = max(leftWidth, rightWidth)
-        HStack(spacing: 0) {
-            Color.clear
-                .frame(width: balanced, height: notchContentHeight)
-                .background(alignment: .leading) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "questionmark.bubble.fill")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.cyan)
-                        Text(questionPromptText(for: request))
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.cyan)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: maxQuestionTextWidth, alignment: .leading)
-                    }
-                    .padding(.leading, wingPadding / 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                }
-                .clipped()
-
-            Rectangle()
-                .fill(.black)
-                .frame(width: vm.closedNotchSize.width, height: notchContentHeight)
-
-            Color.clear
-                .frame(width: balanced, height: notchContentHeight)
-                .background(alignment: .trailing) {
-                    HStack(spacing: questionChipSpacing) {
-                        ForEach(request.optionLabels, id: \.self) { label in
-                            questionChip(label: label) {
-                                manager.answerPendingQuestion(optionLabel: label)
-                            }
-                        }
-                    }
-                    .padding(.trailing, wingPadding / 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-                }
-                .clipped()
-        }
-        .frame(width: balanced + vm.closedNotchSize.width + balanced, height: notchContentHeight, alignment: .center)
-    }
-
-    private func questionChip(label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .padding(.horizontal, questionChipHorizontalPadding)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(.white.opacity(0.16)))
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Prefer the short header ("Color") when present; fall back to the
-    /// question text, which the left wing truncates.
-    private func questionPromptText(for request: AgentQuestionRequest) -> String {
-        request.header ?? request.question
-    }
-
-    private var maxQuestionTextWidth: CGFloat { 170 }
-    private var questionChipSpacing: CGFloat { 6 }
-    private var questionChipHorizontalPadding: CGFloat { 8 }
-
-    private func questionLeftWingWidth(for request: AgentQuestionRequest) -> CGFloat {
-        let textWidth = min(
-            measureTextWidth(
-                questionPromptText(for: request),
-                font: NSFont.systemFont(ofSize: 12, weight: .semibold)
-            ),
-            maxQuestionTextWidth
-        )
-        // Bubble icon (~15pt) + HStack spacing (5pt) + padding slack.
-        return max(wingPadding + 15 + 5 + textWidth + 10, leftWingWidth)
-    }
-
-    private func questionRightWingWidth(for request: AgentQuestionRequest) -> CGFloat {
-        let labels = request.optionLabels
-        let chipsWidth = labels.reduce(CGFloat.zero) { total, label in
-            let textWidth = measureTextWidth(label, font: NSFont.systemFont(ofSize: 11, weight: .semibold))
-            return total + textWidth + 2 * questionChipHorizontalPadding
-        }
-        let spacing = CGFloat(max(labels.count - 1, 0)) * questionChipSpacing
-        return max(wingPadding + chipsWidth + spacing + 18, 96)
-    }
-
-    private func permissionLeftWingWidth(for request: AgentPermissionRequest) -> CGFloat {
-        let textWidth = measureTextWidth(
-            request.toolName,
-            font: NSFont.systemFont(ofSize: 12, weight: .semibold)
-        )
-        // Shield icon (~15pt) + HStack spacing (5pt) + padding slack.
-        return max(wingPadding + 15 + 5 + textWidth + 10, leftWingWidth)
-    }
-
-    private func permissionRightWingWidth(for request: AgentPermissionRequest) -> CGFloat {
-        let textWidth = min(
-            measureTextWidth(
-                request.inputSummary,
-                font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
-            ),
-            maxPermissionSummaryWidth
-        )
-        // Summary + two 16pt buttons + HStack spacing (7pt x2) + padding slack.
-        let buttonsWidth: CGFloat = 2 * 18 + 2 * 7
-        return max(wingPadding + textWidth + buttonsWidth + 18, 96)
     }
 
     @ViewBuilder
@@ -294,6 +94,13 @@ struct AgentLiveActivity: View {
     private func statusSection(for session: AgentSessionManager.Session) -> some View {
         let accent = accentColor(for: session)
         return HStack(spacing: 5) {
+            if let prompt = manager.pendingPrompt(for: session) {
+                // Pending decision indicator (status only — the interactive
+                // controls live in the expanded-notch Agents tab).
+                Image(systemName: pendingIconName(for: prompt))
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(pendingTint(for: prompt))
+            }
             if manager.sessions.count > 1 {
                 Text("\(manager.sessions.count)")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
@@ -331,6 +138,20 @@ struct AgentLiveActivity: View {
         let seconds = max(0, Int(now.timeIntervalSince(start)))
         let minutes = min(seconds / 60, 99)
         return String(format: "%d:%02d", minutes, seconds % 60)
+    }
+
+    private func pendingIconName(for prompt: AgentSessionManager.PendingPrompt) -> String {
+        switch prompt {
+        case .permission: return "shield.lefthalf.filled"
+        case .question: return "questionmark.bubble.fill"
+        }
+    }
+
+    private func pendingTint(for prompt: AgentSessionManager.PendingPrompt) -> Color {
+        switch prompt {
+        case .permission: return .orange
+        case .question: return .cyan
+        }
     }
 
     private func statusText(for session: AgentSessionManager.Session) -> String {
@@ -377,6 +198,10 @@ struct AgentLiveActivity: View {
             maxStatusTextWidth
         )
         var width = wingPadding + textWidth
+        if manager.pendingPrompt(for: session) != nil {
+            // Pending indicator icon (~14pt) + HStack spacing (5pt).
+            width += 14 + 5
+        }
         if session.status.isBusy {
             // Elapsed counter: reserve for "00:00" so the wing doesn't resize
             // every second while the counter ticks + HStack spacing (5pt).

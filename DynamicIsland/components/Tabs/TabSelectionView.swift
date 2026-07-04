@@ -46,6 +46,7 @@ struct TabModel: Identifiable {
 struct TabSelectionView: View {
     @ObservedObject var coordinator = DynamicIslandViewCoordinator.shared
     @ObservedObject private var extensionNotchExperienceManager = ExtensionNotchExperienceManager.shared
+    @ObservedObject private var agentSessionManager = AgentSessionManager.shared
     @StateObject private var quickShareService = QuickShareService.shared
     @Default(.quickShareProvider) private var quickShareProvider
     @State private var showQuickSharePopover = false
@@ -89,6 +90,10 @@ struct TabSelectionView: View {
         }
         if Defaults[.enableTerminalFeature] {
             tabsArray.append(TabModel(label: "Terminal", icon: "apple.terminal", view: .terminal))
+        }
+        // Agents tab appears only while at least one agent session is live.
+        if agentSessionManager.isActive {
+            tabsArray.append(TabModel(label: "Agents", icon: "sparkles", view: .agents))
         }
         if extensionTabsEnabled {
             for payload in extensionTabPayloads {
@@ -143,6 +148,11 @@ struct TabSelectionView: View {
         .animation(.smooth(duration: 0.3), value: coordinator.currentView)
         .clipShape(Capsule())
         .onAppear {
+            ensureValidSelection(with: tabs)
+        }
+        // The Agents tab comes and goes with live sessions; if it disappears
+        // while selected, fall back to the first available tab.
+        .onChange(of: agentSessionManager.isActive) { _, _ in
             ensureValidSelection(with: tabs)
         }
     }

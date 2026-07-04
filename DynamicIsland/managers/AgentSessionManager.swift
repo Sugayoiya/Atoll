@@ -26,7 +26,7 @@ import SwiftUI
 ///
 /// Provider-specific behavior (event normalization, reply encoding, hook
 /// installation) lives in `AgentProvider` adapters; this manager owns the
-/// shared session list, the single pending-prompt slot, and its timeout chain.
+/// shared session list, the per-session pending prompts, and their timeout chain.
 @MainActor
 final class AgentSessionManager: ObservableObject {
     static let shared = AgentSessionManager()
@@ -89,21 +89,38 @@ final class AgentSessionManager: ObservableObject {
         }
     }
 
+    /// An interactive prompt (permission Allow/Deny or question) awaiting a
+    /// user decision, presented in the expanded-notch Agents tab.
+    enum PendingPrompt: Identifiable {
+        case permission(AgentPermissionRequest)
+        case question(AgentQuestionRequest)
+
+        var id: UUID {
+            switch self {
+            case .permission(let request): return request.id
+            case .question(let request): return request.id
+            }
+        }
+
+        /// Session key ("provider:sessionId") this prompt belongs to.
+        var sessionKey: String {
+            switch self {
+            case .permission(let request): return "\(request.provider):\(request.sessionId)"
+            case .question(let request): return "\(request.provider):\(request.sessionId)"
+            }
+        }
+    }
+
     @Published private(set) var sessions: [Session] = []
-    @Published private(set) var pendingPermission: AgentPermissionRequest?
-    @Published private(set) var pendingQuestion: AgentQuestionRequest?
+    /// Per-session pending prompts, keyed by session key ("provider:sessionId").
+    /// Multiple sessions can wait concurrently; a second prompt for the SAME
+    /// session while one is pending falls through to the provider's own flow.
+    @Published private(set) var pendingPrompts: [String: PendingPrompt] = [:]
 
-    /// Whether an interactive prompt (permission Allow/Deny OR question
-    /// chips — they share this flag) is actually on screen, reported by the
-    /// live activity view (onAppear/onDisappear). The closed-notch tap guard
-    /// reads this instead of the pending state: a pending request whose
-    /// prompt lost the closed-notch priority chain (music/timer occupying the
-    /// notch) must not swallow clicks. Not @Published — read imperatively
-    /// from click handlers only.
-    private(set) var isPermissionPromptVisible = false
+    var hasPendingPrompts: Bool { !pendingPrompts.isEmpty }
 
-    func setPermissionPromptVisible(_ visible: Bool) {
-        isPermissionPromptVisible = visible
+    func pendingPrompt(for session: Session) -> PendingPrompt? {
+        pendingPrompts[session.id]
     }
 
     var isActive: Bool { !sessions.isEmpty }
@@ -124,25 +141,22 @@ final class AgentSessionManager: ObservableObject {
         providers[providerId]?.accentColor ?? Self.defaultAccentColor
     }
 
-    /// UI budget for a pending prompt (permission or question). Must stay
-    /// under the socket server's 4.5s response timeout so a nil resolution
+    /// UI budget for a pending prompt (permission or question), giving the
+    /// user time to expand the notch and answer in the Agents tab. Must stay
+    /// under the socket server's response timeout (65s) so a nil resolution
     /// (no decision) still reaches the hook script before it gives up.
-    private static let promptTimeout: TimeInterval = 4.0
+    /// Chain invariant: UI 60s < server 65s < script recv 70s < host hook timeout.
+    private static let promptTimeout: TimeInterval = 60.0
 
     private var cancellables = Set<AnyCancellable>()
     private var staleCleanupTask: Task<Void, Never>? { didSet { oldValue?.cancel() } }
     private var isRunning = false
     private let staleSessionTimeout: TimeInterval = 60 * 60
 
-    /// Resolves with the provider-encoded reply bytes, or nil for no decision.
-    private var promptContinuation: CheckedContinuation<Data?, Never>?
-    private var promptTimeoutTask: Task<Void, Never>? { didSet { oldValue?.cancel() } }
-
-    /// Permission and question prompts share a single pending slot: a second
-    /// concurrent tool call falls through to the provider's own flow.
-    private var hasPendingPrompt: Bool {
-        pendingPermission != nil || pendingQuestion != nil
-    }
+    /// Per-session continuations resolving with the provider-encoded reply
+    /// bytes (nil = no decision), keyed by session key.
+    private var promptContinuations: [String: CheckedContinuation<Data?, Never>] = [:]
+    private var promptTimeoutTasks: [String: Task<Void, Never>] = [:]
 
     private var anyProviderEnabled: Bool {
         providers.values.contains { $0.isEnabled }
@@ -179,6 +193,9 @@ final class AgentSessionManager: ObservableObject {
         // Drop sessions of providers that were just disabled.
         let disabled = sessions.filter { providers[$0.provider]?.isEnabled != true }
         if !disabled.isEmpty {
+            for session in disabled {
+                resolvePendingPrompt(sessionKey: session.id, with: nil)
+            }
             withAnimation(.smooth) {
                 sessions.removeAll { session in disabled.contains(where: { $0.id == session.id }) }
             }
@@ -213,7 +230,7 @@ final class AgentSessionManager: ObservableObject {
         isRunning = false
         AgentHookSocketServer.shared.stop()
         staleCleanupTask = nil
-        resolvePendingPrompt(with: nil)
+        resolveAllPendingPrompts()
         withAnimation(.smooth) {
             sessions.removeAll()
         }
@@ -248,107 +265,95 @@ final class AgentSessionManager: ObservableObject {
         }
         switch prompt {
         case .permission(let request):
-            return await present(permission: request)
+            return await present(prompt: .permission(request))
         case .question(let request):
-            return await present(question: request)
+            return await present(prompt: .question(request))
         }
     }
 
-    /// Presents the Allow/Deny prompt and suspends until the user acts, the
-    /// UI budget elapses, or the session ends — whichever happens first.
-    private func present(permission request: AgentPermissionRequest) async -> Data? {
-        guard !hasPendingPrompt else { return nil }
+    /// Presents the prompt in the Agents tab and suspends until the user
+    /// answers, the UI budget elapses, or the session ends — whichever
+    /// happens first. A second prompt for the SAME session while one is
+    /// pending resolves to nil immediately (provider's own flow runs).
+    private func present(prompt: PendingPrompt) async -> Data? {
+        let key = prompt.sessionKey
+        guard pendingPrompts[key] == nil else { return nil }
 
         withAnimation(.smooth(duration: 0.25)) {
-            pendingPermission = request
+            pendingPrompts[key] = prompt
         }
-        schedulePromptTimeout()
+        schedulePromptTimeout(for: key)
 
         return await withCheckedContinuation { continuation in
             // The request may already have been resolved (e.g. a Stop event)
             // in the suspension gap above; resume immediately in that case.
-            if pendingPermission?.id == request.id {
-                promptContinuation = continuation
+            if pendingPrompts[key]?.id == prompt.id {
+                promptContinuations[key] = continuation
             } else {
                 continuation.resume(returning: nil)
             }
         }
     }
 
-    /// Presents the question chips and suspends until the user picks an
-    /// option, the UI budget elapses, or the session ends.
-    private func present(question request: AgentQuestionRequest) async -> Data? {
-        guard !hasPendingPrompt else { return nil }
-
-        withAnimation(.smooth(duration: 0.25)) {
-            pendingQuestion = request
-        }
-        schedulePromptTimeout()
-
-        return await withCheckedContinuation { continuation in
-            if pendingQuestion?.id == request.id {
-                promptContinuation = continuation
-            } else {
-                continuation.resume(returning: nil)
-            }
-        }
-    }
-
-    private func schedulePromptTimeout() {
-        promptTimeoutTask = Task { [weak self] in
+    private func schedulePromptTimeout(for key: String) {
+        promptTimeoutTasks[key]?.cancel()
+        promptTimeoutTasks[key] = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.promptTimeout))
             guard !Task.isCancelled else { return }
-            self?.resolvePendingPrompt(with: nil)
+            self?.resolvePendingPrompt(sessionKey: key, with: nil)
         }
     }
 
-    /// Called from the notch UI when the user taps Allow or Deny.
-    func answerPendingPermission(allow: Bool) {
+    /// Called from the Agents tab when the user taps Allow or Deny.
+    func answerPendingPermission(sessionKey: String, allow: Bool) {
         // Guard against a stale tap resolving a prompt of the other kind: a
         // bare allow/deny must never answer a pending QUESTION (question
         // replies need the provider's answer encoding, so that would silently
         // drop the answer).
-        guard let request = pendingPermission else { return }
+        guard case .permission(let request)? = pendingPrompts[sessionKey] else { return }
         let decision: AgentDecision = allow
             ? .allow(reason: "Allowed from Atoll notch")
             : .deny(reason: "Denied from Atoll notch")
-        resolvePendingPrompt(with: request.encodeDecision(decision))
+        resolvePendingPrompt(sessionKey: sessionKey, with: request.encodeDecision(decision))
     }
 
-    /// Called from the notch UI when the user taps an answer chip.
-    func answerPendingQuestion(optionLabel: String) {
-        guard let request = pendingQuestion else { return }
-        resolvePendingPrompt(with: request.encodeAnswer(optionLabel))
+    /// Called from the Agents tab when the user taps an answer option.
+    func answerPendingQuestion(sessionKey: String, optionLabel: String) {
+        guard case .question(let request)? = pendingPrompts[sessionKey] else { return }
+        resolvePendingPrompt(sessionKey: sessionKey, with: request.encodeAnswer(optionLabel))
     }
 
-    /// Resolves (at most once) the pending prompt and tears down its UI.
-    /// `nil` means "no decision": the hook exits silently and the provider's
-    /// normal flow takes over.
-    private func resolvePendingPrompt(with reply: Data?) {
-        promptTimeoutTask = nil
-        guard hasPendingPrompt || promptContinuation != nil else { return }
+    /// Resolves (at most once) the session's pending prompt and tears down
+    /// its UI. `nil` means "no decision": the hook exits silently and the
+    /// provider's normal flow takes over.
+    private func resolvePendingPrompt(sessionKey key: String, with reply: Data?) {
+        promptTimeoutTasks[key]?.cancel()
+        promptTimeoutTasks[key] = nil
+        guard pendingPrompts[key] != nil || promptContinuations[key] != nil else { return }
         withAnimation(.smooth(duration: 0.25)) {
-            pendingPermission = nil
-            pendingQuestion = nil
+            _ = pendingPrompts.removeValue(forKey: key)
         }
-        let continuation = promptContinuation
-        promptContinuation = nil
+        let continuation = promptContinuations.removeValue(forKey: key)
         continuation?.resume(returning: reply)
+    }
+
+    private func resolveAllPendingPrompts() {
+        for key in Set(pendingPrompts.keys).union(promptContinuations.keys) {
+            resolvePendingPrompt(sessionKey: key, with: nil)
+        }
     }
 
     private func handle(event: AgentEvent) {
         guard !event.sessionId.isEmpty else { return }
 
-        // A stop/end for the session that owns the pending prompt invalidates it.
+        // A stop/end for a session invalidates its pending prompt.
         let endsSession: Bool
         switch event.kind {
         case .sessionEnd, .stopped, .subagentStopped: endsSession = true
         default: endsSession = false
         }
-        if endsSession,
-           (pendingPermission?.provider == event.provider && pendingPermission?.sessionId == event.sessionId)
-            || (pendingQuestion?.provider == event.provider && pendingQuestion?.sessionId == event.sessionId) {
-            resolvePendingPrompt(with: nil)
+        if endsSession {
+            resolvePendingPrompt(sessionKey: "\(event.provider):\(event.sessionId)", with: nil)
         }
 
         switch event.kind {

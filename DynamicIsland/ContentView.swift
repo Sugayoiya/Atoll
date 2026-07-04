@@ -562,12 +562,6 @@ struct ContentView: View {
                         if handleClosedMusicWaveformTapIfNeeded() {
                             return
                         }
-                        // While a Claude permission prompt is showing in the
-                        // closed notch, its Allow/Deny buttons own the clicks;
-                        // don't let a stray tap expand the notch over them.
-                        if vm.notchState == .closed && agentSessionManager.isPermissionPromptVisible {
-                            return
-                        }
                         if vm.notchState == .closed && Defaults[.enableHaptics] {
                             triggerHapticIfAllowed()
                         }
@@ -1115,6 +1109,8 @@ struct ContentView: View {
                                 NotchNotesView()
                             case .terminal:
                                 NotchTerminalView()
+                            case .agents:
+                                NotchAgentsView()
                             case .extensionExperience:
                                 if let payload = currentExtensionTabPayload() {
                                     ExtensionNotchExperienceTabView(payload: payload)
@@ -1884,6 +1880,11 @@ struct ContentView: View {
 
     // MARK: - Private Methods
     private func openNotch() {
+        // A pending agent prompt takes over the expanded notch so the user
+        // lands directly on the Allow/Deny or question options.
+        if agentSessionManager.hasPendingPrompts {
+            coordinator.currentView = .agents
+        }
         withAnimation(.bouncy.speed(1.2)) {
             vm.open()
         }
@@ -1989,8 +1990,6 @@ struct ContentView: View {
                 guard !self.coordinator.isHoverOpenSuppressed else { return }
                 guard self.isHovering else { return }
                 guard !self.handleClosedMusicWaveformTapIfNeeded() else { return }
-                // Claude permission prompt visible: leave clicks to its buttons.
-                guard !AgentSessionManager.shared.isPermissionPromptVisible else { return }
                 if Defaults[.enableHaptics] {
                     self.triggerHapticIfAllowed()
                 }

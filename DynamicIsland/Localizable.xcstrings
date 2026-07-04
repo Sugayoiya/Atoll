@@ -7217,6 +7217,9 @@
         }
       }
     },
+    "Allow" : {
+
+    },
     "Allow Access" : {
       "localizations" : {
         "ar" : {
@@ -41089,6 +41092,9 @@
           }
         }
       }
+    },
+    "No active agent sessions" : {
+
     },
     "No active interfaces detected yet." : {
       "comment" : "A message displayed when there are no active network interfaces to display.",
