@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 3
+- **Total Sessions**: 4
 - **Last Active**: 2026-07-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~107 | Active |
+| `journal-1.md` | ~143 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 4 | 2026-07-04 | Agent live activity 交互 tab 页与多 session 分离 | `e7481b5`, `df67c78`, `07efef5`, `d804549` | `feat/claude-code-live-activity` |
 | 3 | 2026-07-04 | Verify Cursor hooks live activity integration & finish task | `e187c5f`, `5a29f02`, `229c976` | `feat/claude-code-live-activity` |
 | 2 | 2026-07-02 | Claude Code interactive notch: bidirectional hooks, permission prompt, AskUserQuestion answering | `e509e7e`, `b8c1775` | `feat/claude-code-live-activity` |
 | 1 | 2026-07-02 | Bootstrap project specs from real codebase | - | `feat/claude-code-live-activity` |

@@ -105,3 +105,39 @@ Verified the provider-agnostic AgentHooks refactor + Cursor provider end-to-end.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Agent live activity 交互 tab 页与多 session 分离
+
+**Date**: 2026-07-04
+**Task**: Agent live activity 交互 tab 页与多 session 分离
+**Branch**: `feat/claude-code-live-activity`
+
+### Summary
+
+新增展开态 Agents tab（多 session 列表 + per-session Allow/Deny 与 question 交互），闭合态精简为纯状态展示；pending 改为 per-session 字典，超时链延长至 60/65/70/80s；有 pending 时展开自动切到 Agents tab；仿 Stats 模式实现 notch 高度随 session/pending 数量自适应（上限 3 行，超出滚动兜底）。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e7481b5` | (see git log) |
+| `df67c78` | (see git log) |
+| `07efef5` | (see git log) |
+| `d804549` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
