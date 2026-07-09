@@ -141,3 +141,38 @@ Verified the provider-agnostic AgentHooks refactor + Cursor provider end-to-end.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Agent live activity width clamp + official provider logos
+
+**Date**: 2026-07-09
+**Task**: Agent live activity width clamp + official provider logos
+**Branch**: `feat/claude-code-live-activity`
+
+### Summary
+
+Fixed closed-notch agent live activity overflowing the notch window (wing width now dynamically clamped to window width minus corner slack, text max width shares the same clamp), replaced provider icons with official Cursor/Claude monochrome template SVG assets (new AgentProviderIcon enum, updated live activity / Agents tab / sneak peek render sites), captured width-clamp and SVG asset conventions in frontend spec.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `18eab6d` | (see git log) |
+| `4667945` | (see git log) |
+| `b2ba63d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "系统层（managers/services）总则与 Pre-Development Checklist"}
+{"file": ".trellis/spec/backend/claude-hook-socket-protocol.md", "reason": "hook <-> Atoll socket 协议契约：回复 schema、超时链、错误矩阵 —— 本任务直接修改该协议"}
+{"file": ".trellis/spec/backend/persistence-guidelines.md", "reason": "新增 Defaults key 的约定"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "SwiftUI 设置页改动的 UI 层总则"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "@Default 绑定与 Defaults publisher 的用法约定"}
+{"file": ".trellis/tasks/07-09-claude-permission-request-timeout/research/permission-request-hook-schema.md", "reason": "PermissionRequest 决策回复 JSON 格式与现有超时链的代码事实"}

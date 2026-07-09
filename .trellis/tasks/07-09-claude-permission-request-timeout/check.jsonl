@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "系统层规范索引"}
+{"file": ".trellis/spec/backend/claude-hook-socket-protocol.md", "reason": "核对超时链不变式与回复 schema 是否被正确维护"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "并发与禁用模式检查"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "UI 层质量标准"}
+{"file": ".trellis/tasks/07-09-claude-permission-request-timeout/research/permission-request-hook-schema.md", "reason": "验证实现是否符合 PermissionRequest schema 与链不变式"}
