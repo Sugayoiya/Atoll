@@ -33,12 +33,15 @@ enum ClaudeHookScript {
     /// Claude's RAW stdin JSON as payload; socket moved to /tmp/atoll-agent.sock.
     /// v5: PreToolUse recv timeout raised 5s → 70s so the user can answer the
     /// prompt from the expanded-notch Agents tab (UI budget 60s).
-    static let version = 5
+    /// v6: PermissionRequest also waits for a decision reply (the Allow/Deny
+    /// notch prompt moved off PreToolUse); the recv timeout is derived from
+    /// the user-configurable prompt budget (UI+10s).
+    static let version = 6
 
-    static let contents = #"""
+    static var contents: String { #"""
 #!/bin/bash
 # Atoll Hook - forwards Claude Code events to Atoll via Unix socket
-# atoll-hook-version: 5 (envelope wire format {provider, event, payload})
+# atoll-hook-version: 6 (envelope wire format {provider, event, payload})
 
 SOCKET_PATH="/tmp/atoll-agent.sock"
 
@@ -71,11 +74,11 @@ try:
     sock.settimeout(1)
     sock.connect('$SOCKET_PATH')
     sock.sendall(json.dumps(output).encode())
-    if hook_event == 'PreToolUse':
-        # Only PreToolUse can receive a decision reply. Half-close the write
+    if hook_event in ('PreToolUse', 'PermissionRequest'):
+        # Only these events can receive a decision reply. Half-close the write
         # side so Atoll sees EOF, then wait (bounded) for the optional reply.
         sock.shutdown(socket.SHUT_WR)
-        sock.settimeout(70)
+        sock.settimeout(\#(AgentPromptTimeout.scriptRecvSeconds))
         while True:
             chunk = sock.recv(4096)
             if not chunk:
@@ -102,4 +105,5 @@ if reply:
 sys.exit(0)
 "
 """#
+    }
 }

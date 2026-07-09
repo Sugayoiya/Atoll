@@ -66,3 +66,42 @@ struct ClaudeHookResponse: Codable, Equatable, Sendable {
         try? JSONEncoder().encode(self)
     }
 }
+
+/// Decision JSON for the `PermissionRequest` hook event. Unlike PreToolUse's
+/// `permissionDecision`, this event expects `decision.behavior` with only
+/// "allow" | "deny" — there is no "ask": sending no reply at all lets Claude
+/// show its normal permission dialog.
+struct ClaudePermissionRequestResponse: Codable, Equatable, Sendable {
+    let hookSpecificOutput: HookSpecificOutput
+
+    struct HookSpecificOutput: Codable, Equatable, Sendable {
+        /// Always "PermissionRequest".
+        let hookEventName: String
+        let decision: Decision
+
+        init(decision: Decision) {
+            self.hookEventName = "PermissionRequest"
+            self.decision = decision
+        }
+    }
+
+    struct Decision: Codable, Equatable, Sendable {
+        let behavior: Behavior
+        /// Deny reason, surfaced back to Claude.
+        let message: String?
+    }
+
+    enum Behavior: String, Codable, Sendable {
+        case allow
+        case deny
+    }
+
+    init(behavior: Behavior, message: String? = nil) {
+        self.hookSpecificOutput = HookSpecificOutput(decision: Decision(behavior: behavior, message: message))
+    }
+
+    /// Serializes the decision for writing back on the hook socket.
+    func encoded() -> Data? {
+        try? JSONEncoder().encode(self)
+    }
+}

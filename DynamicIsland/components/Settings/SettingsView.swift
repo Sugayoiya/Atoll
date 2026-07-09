@@ -3986,6 +3986,7 @@ struct LiveActivitiesSettings: View {
     @Default(.enableDoNotDisturbDetection) var enableDoNotDisturbDetection
     @Default(.focusIndicatorNonPersistent) var focusIndicatorNonPersistent
     @Default(.capsLockIndicatorTintMode) var capsLockTintMode
+    @Default(.agentPromptTimeoutSeconds) var agentPromptTimeoutSeconds
 
     private func highlightID(_ title: String) -> String {
         SettingsTab.liveActivities.highlightID(for: title)
@@ -4238,6 +4239,26 @@ struct LiveActivitiesSettings: View {
                 Text("Cursor Live Activity")
             } footer: {
                 Text("Shows Cursor agent session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.cursor/hooks and registers it in ~/.cursor/hooks.json. The permission prompt shows Allow/Deny in the notch for shell commands and MCP tool calls; if you don't respond within a few seconds, Cursor falls back to its own permission flow. Disabling the toggle keeps the hooks installed but ignores their events; uninstalling removes only Atoll-managed entries.")
+            }
+
+            Section {
+                HStack {
+                    Text("Prompt wait time")
+                    Spacer()
+                    Text("\(Int(agentPromptTimeoutSeconds))s")
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                }
+                Slider(
+                    value: $agentPromptTimeoutSeconds,
+                    in: AgentPromptTimeout.range,
+                    step: 5
+                )
+                .settingsHighlight(id: highlightID("Prompt wait time"))
+            } header: {
+                Text("Agent Prompt Timeout")
+            } footer: {
+                Text("How long permission and question prompts wait in the notch before falling back to the agent's own flow. Shared by Claude Code and Cursor; changing it updates the installed hook scripts and their configured timeouts automatically.")
             }
         }
         .navigationTitle("Live Activities")

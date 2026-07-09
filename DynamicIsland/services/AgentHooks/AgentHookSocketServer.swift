@@ -17,6 +17,32 @@
  */
 
 import Foundation
+import Defaults
+
+/// Single source of truth for the hook timeout chain, derived from the
+/// user-configurable UI prompt budget (`Defaults[.agentPromptTimeoutSeconds]`).
+///
+/// Chain invariant (MUST hold): UI < server (UI+5) < script recv (UI+10)
+/// < host hook timeout (UI+20). Every derived value reads Defaults at call
+/// time; changing the setting re-runs `installIfNeeded()` (content diffing
+/// rewrites the scripts and config timeouts automatically).
+enum AgentPromptTimeout {
+    static let range: ClosedRange<Double> = 10...300
+
+    /// UI budget: how long a pending prompt waits in the Agents tab.
+    static var uiSeconds: TimeInterval {
+        min(max(Defaults[.agentPromptTimeoutSeconds], range.lowerBound), range.upperBound)
+    }
+
+    /// Socket server reply window (semaphore bound).
+    static var serverSeconds: TimeInterval { uiSeconds + 5 }
+
+    /// `sock.settimeout(...)` embedded in the generated hook scripts.
+    static var scriptRecvSeconds: Int { Int(uiSeconds) + 10 }
+
+    /// `timeout` written into Claude's settings.json / Cursor's hooks.json.
+    static var hostHookSeconds: Int { Int(uiSeconds) + 20 }
+}
 
 /// Minimal Unix domain socket server that receives `AgentHookEnvelope` JSON
 /// from provider hook scripts at `/tmp/atoll-agent.sock`.
@@ -36,11 +62,11 @@ final class AgentHookSocketServer: @unchecked Sendable {
 
     static let socketPath = "/tmp/atoll-agent.sock"
 
-    /// Upper bound for producing a reply. The hook script waits ~70s for a
+    /// Upper bound for producing a reply. The hook script waits UI+10s for a
     /// response; if the handler takes longer we close the connection with no
     /// reply so the script (and the agent's normal permission flow) proceeds.
-    /// Chain invariant: UI 60s < server 65s < script recv 70s < host hook timeout.
-    private static let responseTimeout: TimeInterval = 65
+    /// Chain invariant: UI < server (UI+5) < script recv (UI+10) < host hook timeout (UI+20).
+    private static var responseTimeout: TimeInterval { AgentPromptTimeout.serverSeconds }
 
     private let socketPath = AgentHookSocketServer.socketPath
     private var serverSocket: Int32 = -1

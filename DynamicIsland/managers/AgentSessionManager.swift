@@ -143,10 +143,11 @@ final class AgentSessionManager: ObservableObject {
 
     /// UI budget for a pending prompt (permission or question), giving the
     /// user time to expand the notch and answer in the Agents tab. Must stay
-    /// under the socket server's response timeout (65s) so a nil resolution
+    /// under the socket server's response timeout (UI+5s) so a nil resolution
     /// (no decision) still reaches the hook script before it gives up.
-    /// Chain invariant: UI 60s < server 65s < script recv 70s < host hook timeout.
-    private static let promptTimeout: TimeInterval = 60.0
+    /// Chain invariant: UI < server (UI+5) < script recv (UI+10) < host hook timeout (UI+20).
+    /// User-configurable; read at schedule time so changes apply immediately.
+    private static var promptTimeout: TimeInterval { AgentPromptTimeout.uiSeconds }
 
     private var cancellables = Set<AnyCancellable>()
     private var staleCleanupTask: Task<Void, Never>? { didSet { oldValue?.cancel() } }
@@ -168,8 +169,10 @@ final class AgentSessionManager: ObservableObject {
         providers = [claude.id: claude, cursor.id: cursor]
 
         // Each provider's enable toggle starts/stops the shared socket server:
-        // it runs while ANY provider is enabled.
-        Defaults.publisher(keys: .enableClaudeCodeLiveActivity, .enableCursorLiveActivity, options: [])
+        // it runs while ANY provider is enabled. The prompt-timeout key is
+        // included so changing it re-runs installIfNeeded(): the installers'
+        // content diffing rewrites the hook scripts and config timeouts.
+        Defaults.publisher(keys: .enableClaudeCodeLiveActivity, .enableCursorLiveActivity, .agentPromptTimeoutSeconds, options: [])
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.refreshRunningState()
@@ -443,6 +446,9 @@ final class AgentSessionManager: ObservableObject {
             status: true,
             type: .claudeCode,
             duration: 3,
+            // Brand asset name so the sneak peek shows the provider's logo
+            // (empty falls back to the asterisk SF Symbol in ContentView).
+            icon: providers[event.provider]?.icon.assetName ?? "",
             title: title,
             subtitle: subtitle,
             accentColor: accentColor(for: event.provider)

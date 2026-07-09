@@ -41,12 +41,14 @@ enum CursorHookScript {
     /// event stays fire-and-forget.
     /// v3: permission recv timeout raised 5s → 70s so the user can answer the
     /// prompt from the expanded-notch Agents tab (UI budget 60s).
-    static let version = 3
+    /// v4: permission recv timeout is derived from the user-configurable
+    /// prompt budget (UI+10s) instead of the hardcoded 70s.
+    static let version = 4
 
-    static let contents = #"""
+    static var contents: String { #"""
 #!/bin/bash
 # Atoll Hook - forwards Cursor events to Atoll via Unix socket
-# atoll-cursor-hook-version: 3 (envelope wire format {provider, event, payload})
+# atoll-cursor-hook-version: 4 (envelope wire format {provider, event, payload})
 
 SOCKET_PATH="/tmp/atoll-agent.sock"
 
@@ -84,7 +86,7 @@ try:
         # Half-close the write side so Atoll sees EOF, then wait (bounded)
         # for the optional reply.
         sock.shutdown(socket.SHUT_WR)
-        sock.settimeout(70)
+        sock.settimeout(\#(AgentPromptTimeout.scriptRecvSeconds))
         while True:
             chunk = sock.recv(4096)
             if not chunk:
@@ -111,4 +113,5 @@ if reply:
 sys.exit(0)
 "
 """#
+    }
 }

@@ -1140,6 +1140,11 @@ extension Defaults.Keys {
     static let reminderSneakPeekDuration = Key<Double>("reminderSneakPeekDuration", default: 5)
     static let timerControlWindowEnabled = Key<Bool>("timerControlWindowEnabled", default: true)
 
+    // MARK: Agent Live Activity (shared by Claude Code and Cursor)
+    /// UI budget (seconds) for a pending notch prompt; the rest of the hook
+    /// timeout chain is derived from it (see `AgentPromptTimeout`).
+    static let agentPromptTimeoutSeconds = Key<Double>("agentPromptTimeoutSeconds", default: 60)
+
     // MARK: Claude Code Live Activity
     static let enableClaudeCodeLiveActivity = Key<Bool>("enableClaudeCodeLiveActivity", default: false)
     static let claudeCodeSneakPeekEnabled = Key<Bool>("claudeCodeSneakPeekEnabled", default: true)

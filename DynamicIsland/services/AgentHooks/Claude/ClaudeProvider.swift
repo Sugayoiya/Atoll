@@ -30,7 +30,7 @@ final class ClaudeProvider: AgentProvider {
     let id = ClaudeProvider.providerId
     let displayName = "Claude Code"
     let accentColor = Color(red: 0.85, green: 0.45, blue: 0.25)
-    let iconName = "asterisk"
+    let icon: AgentProviderIcon = .asset(name: "AgentLogoClaude")
 
     /// Tools that trigger the notch Allow/Deny permission prompt.
     /// AskUserQuestion is NOT listed here: it goes through the dedicated
@@ -85,7 +85,6 @@ final class ClaudeProvider: AgentProvider {
     }
 
     func promptRequest(for envelope: AgentHookEnvelope) -> AgentPromptRequest? {
-        guard envelope.event == "PreToolUse" else { return nil }
         let payload = envelope.payload
         guard let sessionId = payload["session_id"]?.stringValue, !sessionId.isEmpty,
               let tool = payload["tool_name"]?.stringValue else {
@@ -93,8 +92,13 @@ final class ClaudeProvider: AgentProvider {
         }
         let toolInput = payload["tool_input"]
 
-        if tool == "AskUserQuestion" {
-            guard Defaults[.claudeCodeQuestionAnswerEnabled],
+        switch envelope.event {
+        case "PreToolUse":
+            // AskUserQuestion pre-answering stays on PreToolUse: it relies on
+            // `permissionDecision: allow` + `updatedInput` (PoC-verified), which
+            // only exists on this event.
+            guard tool == "AskUserQuestion",
+                  Defaults[.claudeCodeQuestionAnswerEnabled],
                   let question = ClaudeAskUserQuestion.parse(toolInput: toolInput) else {
                 return nil
             }
@@ -117,33 +121,37 @@ final class ClaudeProvider: AgentProvider {
                     ).encoded()
                 }
             ))
-        }
 
-        guard Defaults[.claudeCodePermissionPromptEnabled],
-              Self.permissionPromptTools.contains(tool) else {
+        case "PermissionRequest":
+            // The Allow/Deny notch prompt hangs off PermissionRequest so that
+            // allowlisted commands (which never trigger this event) skip the
+            // notch entirely instead of waiting out the prompt timeout.
+            guard Defaults[.claudeCodePermissionPromptEnabled],
+                  Self.permissionPromptTools.contains(tool) else {
+                return nil
+            }
+            return .permission(AgentPermissionRequest(
+                provider: id,
+                sessionId: sessionId,
+                toolName: tool,
+                inputSummary: ClaudeToolSummary.permissionSummary(tool: tool, input: toolInput),
+                encodeDecision: { decision in
+                    // PermissionRequest has no "ask": no reply = Claude shows
+                    // its normal permission dialog.
+                    switch decision {
+                    case .allow:
+                        return ClaudePermissionRequestResponse(behavior: .allow).encoded()
+                    case .deny(let reason):
+                        return ClaudePermissionRequestResponse(behavior: .deny, message: reason).encoded()
+                    case .ask:
+                        return nil
+                    }
+                }
+            ))
+
+        default:
             return nil
         }
-        return .permission(AgentPermissionRequest(
-            provider: id,
-            sessionId: sessionId,
-            toolName: tool,
-            inputSummary: ClaudeToolSummary.permissionSummary(tool: tool, input: toolInput),
-            encodeDecision: { decision in
-                let permissionDecision: ClaudeHookResponse.PermissionDecision
-                let reason: String?
-                switch decision {
-                case .allow(let r): permissionDecision = .allow; reason = r
-                case .deny(let r): permissionDecision = .deny; reason = r
-                case .ask(let r): permissionDecision = .ask; reason = r
-                }
-                return ClaudeHookResponse(
-                    hookSpecificOutput: .init(
-                        permissionDecision: permissionDecision,
-                        permissionDecisionReason: reason
-                    )
-                ).encoded()
-            }
-        ))
     }
 
     nonisolated func installIfNeeded() {

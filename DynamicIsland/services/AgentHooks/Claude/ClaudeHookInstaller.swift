@@ -34,7 +34,9 @@ enum ClaudeHookInstaller {
         "SessionEnd",
     ]
 
-    private static let hookTimeoutSeconds = 80
+    /// Host-side hook timeout written into settings.json; derived from the
+    /// configurable prompt budget (UI+20s) to preserve the chain invariant.
+    private static var hookTimeoutSeconds: Int { AgentPromptTimeout.hostHookSeconds }
 
     static var claudeConfigDirectory: URL {
         if let custom = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"], !custom.isEmpty {
@@ -140,9 +142,10 @@ enum ClaudeHookInstaller {
             json = existing
         }
 
-        // Explicit per-command timeout: the script blocks up to 70s waiting
-        // for a PreToolUse decision, which exceeds Claude's 60s default.
-        // Chain invariant: UI 60s < server 65s < script recv 70s < hook timeout 80s.
+        // Explicit per-command timeout: the script blocks up to UI+10s waiting
+        // for a PreToolUse/PermissionRequest decision, which may exceed
+        // Claude's 60s default.
+        // Chain invariant: UI < server (UI+5) < script recv (UI+10) < hook timeout (UI+20).
         // Harmless on fire-and-forget events (the script exits immediately).
         let hookEntry: [[String: Any]] = [[
             "type": "command",

@@ -20,23 +20,33 @@ doc and bump the affected script version marker.
 - Server handler: `typealias EventHandler = (AgentHookEnvelope) async -> Data?`
   — return `nil` = no decision (fire-and-forget parity); return the provider's
   encoded reply bytes = decision written back on the SAME client fd.
+- All timeout values are derived from the user-configurable UI prompt budget
+  `Defaults[.agentPromptTimeoutSeconds]` (default 60, clamped 10–300) via
+  `AgentPromptTimeout` in `AgentHookSocketServer.swift`: server = UI+5,
+  script recv = UI+10, host hook timeout = UI+20. Numbers below use the
+  defaults. Changing the setting re-runs `installIfNeeded()` (listened in
+  `AgentSessionManager`); the installers' content diffing rewrites scripts
+  and config timeouts.
 - Claude script (embedded in `ClaudeHookScript.swift`, version marker
-  `atoll-hook-version: N`, currently v5):
+  `atoll-hook-version: N`, currently v6):
   - All events: connect (1s timeout) → send envelope JSON.
-  - `PreToolUse` only: `shutdown(SHUT_WR)` (half-close signals EOF to server) →
-    `recv()` with 70s timeout → if reply parses as JSON, print to stdout, exit 0;
-    else exit 0 with NO stdout output.
-  - Non-PreToolUse events: `close()` immediately after send (never wait).
-  - Claude's settings.json hook entries carry an explicit `"timeout": 80`
-    (seconds) because the 70s recv exceeds Claude's 60s default hook timeout.
+  - `PreToolUse` and `PermissionRequest` only: `shutdown(SHUT_WR)` (half-close
+    signals EOF to server) → `recv()` with UI+10s (default 70s) timeout → if
+    reply parses as JSON, print to stdout, exit 0; else exit 0 with NO stdout
+    output.
+  - All other events: `close()` immediately after send (never wait).
+  - Claude's settings.json hook entries carry an explicit `"timeout"` of
+    UI+20s (default 80) because the recv wait exceeds Claude's 60s default
+    hook timeout.
 - Cursor script (embedded in `CursorHookScript.swift`, version marker
-  `atoll-cursor-hook-version: N`, currently v3; installed to
+  `atoll-cursor-hook-version: N`, currently v4; installed to
   `~/.cursor/hooks/`, registered in `~/.cursor/hooks.json`):
   - Same envelope send; ONLY `beforeShellExecution` / `beforeMCPExecution` do
-    the reply dance (`shutdown(SHUT_WR)` → 70s recv → JSON-validate → stdout);
+    the reply dance (`shutdown(SHUT_WR)` → UI+10s recv → JSON-validate → stdout);
     all other events (incl. `preToolUse`) are fire-and-forget.
   - The hooks.json entries for those two events carry an explicit
-    `"timeout": 80` (seconds); display-event entries have no timeout override.
+    `"timeout"` of UI+20s (default 80); display-event entries have no timeout
+    override.
 
 ## 3. Contracts
 
@@ -71,6 +81,21 @@ encoder. Claude (Atoll → script → Claude stdout) — `ClaudeHookResponse`:
 
 - PreToolUse decisions go inside `hookSpecificOutput` — the top-level
   `decision`/`reason` form is DEPRECATED for this event.
+- Since 07-09, the Allow/Deny permission prompt hangs off `PermissionRequest`
+  (fires only when Claude would actually show its permission dialog, so
+  allowlisted commands never touch the notch); the PreToolUse shape above is
+  used ONLY by the AskUserQuestion pre-answer flow. PermissionRequest replies
+  use `ClaudePermissionRequestResponse` (`decision.behavior`, no "ask" —
+  no reply = dialog appears normally):
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PermissionRequest",
+    "decision": { "behavior": "allow | deny", "message": "optional deny reason" }
+  }
+}
+```
 - `updatedInput` replaces the whole input object; include unchanged fields.
 - AskUserQuestion pre-answering needs `allow` + `updatedInput` echoing the full
   `questions` array plus an `answers` map — `allow` alone is insufficient.
@@ -109,20 +134,21 @@ nesting; only for `beforeShellExecution` / `beforeMCPExecution`:
 
 | Condition | Behavior |
 |---|---|
-| No reply within script's 70s recv timeout | Script exits 0, no stdout → Claude runs normal permission flow |
-| Server handler exceeds 65s semaphore window | Server closes fd without reply (same as above) |
+| No reply within script's UI+10s recv timeout | Script exits 0, no stdout → Claude runs normal permission flow |
+| Server handler exceeds UI+5s semaphore window | Server closes fd without reply (same as above) |
 | Reply bytes fail `json.loads` (truncated write) | Script silently discards, exits 0 |
 | Handler returns `nil` | Server closes fd immediately (fire-and-forget parity) |
 | Event has empty `session_id` | Manager ignores it for permission prompts (no invisible pending state) |
-| Second PreToolUse while a prompt pending for the SAME session | New one resolves to `nil` immediately (other sessions unaffected) |
-| Cursor: no reply within 70s recv / invalid JSON | Script exits 0, no stdout → Cursor runs its own permission flow (fail-open) |
+| Second prompt event while one pending for the SAME session | New one resolves to `nil` immediately (other sessions unaffected) |
+| Cursor: no reply within UI+10s recv / invalid JSON | Script exits 0, no stdout → Cursor runs its own permission flow (fail-open) |
 
-**Timeout chain invariant (MUST hold)**: UI budget 60s < server semaphore 65s
-< script recv 70s < host hook timeout (Claude: explicit `"timeout": 80` on the
-installed hook entries; Cursor: explicit `"timeout": 80` on the two permission
-entries in hooks.json). The notch gives the user time to answer from the
-Agents tab, but every path still ends in `exit 0` and falls back to the
-provider's native flow.
+**Timeout chain invariant (MUST hold)**: UI budget (Defaults
+`.agentPromptTimeoutSeconds`, default 60, clamped 10–300) < server semaphore
+UI+5 < script recv UI+10 < host hook timeout UI+20 (Claude: explicit
+`"timeout"` on the installed hook entries; Cursor: explicit `"timeout"` on the
+two permission entries in hooks.json). The notch gives the user time to answer
+from the Agents tab, but every path still ends in `exit 0` and falls back to
+the provider's native flow.
 
 ## 5. Good/Base/Bad Cases
 
@@ -157,11 +183,11 @@ send(event_json); reply = sock.recv(...)
 ### Correct
 
 ```python
-# Only PreToolUse waits; everything else stays fire-and-forget
+# Only reply-capable events wait; everything else stays fire-and-forget
 send(event_json)
-if event == "PreToolUse":
+if event in ("PreToolUse", "PermissionRequest"):
     sock.shutdown(SHUT_WR)   # half-close so server sees EOF and can reply
-    reply = recv_with_timeout(70)
+    reply = recv_with_timeout(ui_budget + 10)
     if is_valid_json(reply): print(reply)
 sock.close(); sys.exit(0)
 ```

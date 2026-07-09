@@ -37,12 +37,12 @@ enum CursorHookInstaller {
 
     /// Permission-control events: the script waits (bounded) for a decision
     /// reply, so the hooks.json entry gets an explicit timeout preserving the
-    /// chain invariant UI 60s < server 65s < script recv 70s < hook timeout 80s.
+    /// chain invariant UI < server (UI+5) < script recv (UI+10) < hook timeout (UI+20).
     private static let permissionEvents: [String] = [
         "beforeShellExecution",
         "beforeMCPExecution",
     ]
-    private static let permissionEventTimeoutSeconds = 80
+    private static var permissionEventTimeoutSeconds: Int { AgentPromptTimeout.hostHookSeconds }
 
     private static var hookEvents: [String] { displayEvents + permissionEvents }
 
