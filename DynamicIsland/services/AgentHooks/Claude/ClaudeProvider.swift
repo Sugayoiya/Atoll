@@ -105,18 +105,26 @@ final class ClaudeProvider: AgentProvider {
             return .question(AgentQuestionRequest(
                 provider: id,
                 sessionId: sessionId,
-                question: question.question,
-                header: question.header,
-                optionLabels: question.optionLabels,
-                encodeAnswer: { label in
+                questions: question.questions.map {
+                    AgentQuestionRequest.Question(
+                        text: $0.question,
+                        header: $0.header,
+                        multiSelect: $0.multiSelect,
+                        optionLabels: $0.optionLabels
+                    )
+                },
+                encodeAnswer: { answers in
                     // Pre-answers AskUserQuestion: allow + updatedInput carrying
                     // the original questions (echoed verbatim) plus the `answers`
                     // map — `allow` alone is not sufficient for AskUserQuestion.
-                    ClaudeHookResponse(
+                    guard let updatedInput = question.updatedInput(answers: answers) else {
+                        return nil
+                    }
+                    return ClaudeHookResponse(
                         hookSpecificOutput: .init(
                             permissionDecision: .allow,
                             permissionDecisionReason: "Answered from Atoll notch",
-                            updatedInput: question.updatedInput(choosing: label)
+                            updatedInput: updatedInput
                         )
                     ).encoded()
                 }

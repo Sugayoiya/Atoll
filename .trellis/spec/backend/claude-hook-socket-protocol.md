@@ -105,12 +105,22 @@ encoder. Claude (Atoll → script → Claude stdout) — `ClaudeHookResponse`:
 - AskUserQuestion echo rule: keep the ORIGINAL `questions` `JSONValue` subtree
   from the received `tool_input` and embed it verbatim in `updatedInput` — never
   round-trip through a typed model (unknown fields would be dropped).
+- Since 07-09-ask-question-configurable, multi-question payloads and
+  `multiSelect=true` ARE supported: the Agents tab collects selections per
+  question and submits once; each `answers` value is the chosen label
+  (multiSelect answers comma-joined with `", "`). Fit-check limits are
+  user-configurable Defaults, read on every parse:
+  `claudeCodeQuestionMaxOptionCount` (default 6, hard-clamped 2–10),
+  `claudeCodeQuestionMaxOptionLabelLength` (default 30) and per-question
+  `claudeCodeQuestionMaxCombinedLabelLength` (default 120).
 - Notch answer fallback matrix (all resolve `nil` → terminal answers normally):
-  multi-question payloads, `multiSelect=true`, >4 or <2 options, label >16 chars
-  or total >40 chars, duplicate option labels, feature toggle off, empty
-  `session_id`, a second prompt while one is pending FOR THE SAME session
-  (pending prompts are per-session since 07-04; different sessions can wait
-  concurrently and are answered from the expanded-notch Agents tab).
+  any question over the configured option-count/label-length limits, <2
+  options, duplicate option labels within a question, duplicate question
+  texts across a payload (the `answers` map keys by question text), feature
+  toggle off, empty `session_id`, a second prompt while one is pending FOR
+  THE SAME session (pending prompts are per-session since 07-04; different
+  sessions can wait concurrently and are answered from the expanded-notch
+  Agents tab).
 
 Cursor (Atoll → script → Cursor stdout) — flat schema, NO `hookSpecificOutput`
 nesting; only for `beforeShellExecution` / `beforeMCPExecution`:

@@ -374,10 +374,12 @@ final class AgentSessionManager: ObservableObject {
         resolvePendingPrompt(sessionKey: sessionKey, with: request.encodeDecision(.allow(reason: "Allowed from Atoll notch")))
     }
 
-    /// Called from the Agents tab when the user taps an answer option.
-    func answerPendingQuestion(sessionKey: String, optionLabel: String) {
+    /// Called from the Agents tab when the user answers the question(s):
+    /// selected option labels keyed by question text (multiSelect questions
+    /// may carry several labels; every question must have at least one).
+    func answerPendingQuestion(sessionKey: String, answers: [String: [String]]) {
         guard case .question(let request)? = pendingPrompts[sessionKey] else { return }
-        resolvePendingPrompt(sessionKey: sessionKey, with: request.encodeAnswer(optionLabel))
+        resolvePendingPrompt(sessionKey: sessionKey, with: request.encodeAnswer(answers))
     }
 
     /// Resolves (at most once) the session's pending prompt and tears down

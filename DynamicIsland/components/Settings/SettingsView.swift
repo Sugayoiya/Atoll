@@ -3989,6 +3989,10 @@ struct LiveActivitiesSettings: View {
     @Default(.agentPromptTimeoutSeconds) var agentPromptTimeoutSeconds
     @Default(.agentAutoAllowEnabled) var agentAutoAllowEnabled
     @Default(.agentAutoAllowRules) var agentAutoAllowRules
+    @Default(.claudeCodeQuestionAnswerEnabled) var claudeCodeQuestionAnswerEnabled
+    @Default(.claudeCodeQuestionMaxOptionCount) var claudeCodeQuestionMaxOptionCount
+    @Default(.claudeCodeQuestionMaxOptionLabelLength) var claudeCodeQuestionMaxOptionLabelLength
+    @Default(.claudeCodeQuestionMaxCombinedLabelLength) var claudeCodeQuestionMaxCombinedLabelLength
 
     private func highlightID(_ title: String) -> String {
         SettingsTab.liveActivities.highlightID(for: title)
@@ -4221,10 +4225,56 @@ struct LiveActivitiesSettings: View {
                     Text("Answer Claude's questions from the notch")
                 }
                 .settingsHighlight(id: highlightID("Answer Claude's questions from the notch"))
+
+                if claudeCodeQuestionAnswerEnabled {
+                    Stepper(
+                        value: $claudeCodeQuestionMaxOptionCount,
+                        in: ClaudeAskUserQuestion.optionCountBounds
+                    ) {
+                        HStack {
+                            Text("Max options per question")
+                            Spacer()
+                            Text("\(claudeCodeQuestionMaxOptionCount)")
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    .settingsHighlight(id: highlightID("Max options per question"))
+
+                    Stepper(
+                        value: $claudeCodeQuestionMaxOptionLabelLength,
+                        in: 8...100,
+                        step: 2
+                    ) {
+                        HStack {
+                            Text("Max option label length")
+                            Spacer()
+                            Text("\(claudeCodeQuestionMaxOptionLabelLength)")
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    .settingsHighlight(id: highlightID("Max option label length"))
+
+                    Stepper(
+                        value: $claudeCodeQuestionMaxCombinedLabelLength,
+                        in: 20...400,
+                        step: 10
+                    ) {
+                        HStack {
+                            Text("Max combined label length")
+                            Spacer()
+                            Text("\(claudeCodeQuestionMaxCombinedLabelLength)")
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    .settingsHighlight(id: highlightID("Max combined label length"))
+                }
             } header: {
                 Text("Claude Code Live Activity")
             } footer: {
-                Text("Shows Claude Code session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.claude/hooks and registers it in Claude Code's settings.json. The permission prompt shows Allow/Deny in the notch for risky tools (e.g. Bash); question answering shows Claude's multiple-choice questions as tappable options. If you don't respond within a few seconds, Claude falls back to its normal terminal prompt.")
+                Text("Shows Claude Code session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.claude/hooks and registers it in Claude Code's settings.json. The permission prompt shows Allow/Deny in the notch for risky tools (e.g. Bash); question answering shows Claude's multiple-choice questions as tappable options (questions exceeding the option-count or label-length limits fall back to the terminal prompt). If you don't respond within a few seconds, Claude falls back to its normal terminal prompt.")
             }
 
             Section {

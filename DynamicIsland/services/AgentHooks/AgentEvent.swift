@@ -107,18 +107,30 @@ struct AgentPermissionRequest: Identifiable {
     }
 }
 
-/// A question awaiting a chosen option from the notch (Claude-only today).
-/// `encodeAnswer` turns the chosen option label into the provider's reply bytes.
+/// One or more questions awaiting chosen options from the notch (Claude-only
+/// today). `encodeAnswer` turns the full answer set — selected labels keyed by
+/// question text — into the provider's reply bytes (nil = send no reply).
 struct AgentQuestionRequest: Identifiable {
+    struct Question: Equatable, Sendable {
+        /// Full question text; also the key in the answer set.
+        let text: String
+        /// Short topic tag (e.g. "Color"), preferred over the text when present.
+        let header: String?
+        let multiSelect: Bool
+        let optionLabels: [String]
+    }
+
     let id = UUID()
     let provider: String
     let sessionId: String
-    /// Full question text (left wing truncates).
-    let question: String
-    /// Short topic tag (e.g. "Color"), preferred over the question when present.
-    let header: String?
-    let optionLabels: [String]
-    let encodeAnswer: @Sendable (String) -> Data?
+    let questions: [Question]
+    let encodeAnswer: @Sendable ([String: [String]]) -> Data?
+
+    /// True when a single tap can answer the whole request (one single-select
+    /// question); otherwise the UI collects selections and submits explicitly.
+    var isSingleTapAnswerable: Bool {
+        questions.count == 1 && !(questions.first?.multiSelect ?? false)
+    }
 }
 
 /// An interactive prompt derived by a provider adapter from a raw envelope.

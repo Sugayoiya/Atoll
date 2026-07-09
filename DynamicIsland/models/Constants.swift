@@ -1155,6 +1155,11 @@ extension Defaults.Keys {
     static let claudeCodeSneakPeekEnabled = Key<Bool>("claudeCodeSneakPeekEnabled", default: true)
     static let claudeCodePermissionPromptEnabled = Key<Bool>("claudeCodePermissionPromptEnabled", default: false)
     static let claudeCodeQuestionAnswerEnabled = Key<Bool>("claudeCodeQuestionAnswerEnabled", default: false)
+    /// AskUserQuestion notch fit-check limits. Payloads exceeding any of these
+    /// fall back to Claude's terminal prompt (parse returns nil, no reply).
+    static let claudeCodeQuestionMaxOptionCount = Key<Int>("claudeCodeQuestionMaxOptionCount", default: 6)
+    static let claudeCodeQuestionMaxOptionLabelLength = Key<Int>("claudeCodeQuestionMaxOptionLabelLength", default: 30)
+    static let claudeCodeQuestionMaxCombinedLabelLength = Key<Int>("claudeCodeQuestionMaxCombinedLabelLength", default: 120)
 
     // MARK: Cursor Live Activity
     static let enableCursorLiveActivity = Key<Bool>("enableCursorLiveActivity", default: false)
