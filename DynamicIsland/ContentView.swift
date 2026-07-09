@@ -1050,8 +1050,12 @@ struct ContentView: View {
                               if !vm.hideOnClosed && activeSneakPeekStyle == .standard {
                                   let accent = (coordinator.sneakPeek.accentColor ?? AgentSessionManager.defaultAccentColor).ensureMinimumBrightness(factor: 0.7)
                                   HStack(alignment: .center, spacing: 6) {
-                                      Image(systemName: "asterisk")
-                                          .font(.system(size: 12, weight: .bold))
+                                      // sneakPeek.icon carries the provider's brand asset name
+                                      // (see AgentSessionManager.showAttentionSneakPeek).
+                                      (coordinator.sneakPeek.icon.isEmpty
+                                          ? AgentProviderIcon.system(name: "asterisk")
+                                          : AgentProviderIcon.asset(name: coordinator.sneakPeek.icon))
+                                          .view(size: 12)
                                       GeometryReader { geo in
                                           MarqueeText(
                                               .constant(coordinator.sneakPeek.title + " - " + coordinator.sneakPeek.subtitle),

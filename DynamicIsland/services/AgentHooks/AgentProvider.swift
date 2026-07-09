@@ -19,6 +19,37 @@
 import Foundation
 import SwiftUI
 
+/// Icon shown for a provider in the live activity / Agents tab: either an
+/// SF Symbol or a bundled template asset (official brand logo).
+enum AgentProviderIcon {
+    case system(name: String)
+    case asset(name: String)
+
+    /// Asset catalog name when this is a bundled asset icon, nil for SF Symbols.
+    var assetName: String? {
+        if case .asset(let name) = self { return name }
+        return nil
+    }
+
+    /// Renders the icon at roughly the visual size of an SF Symbol with the
+    /// given point size. Asset icons are template-rendered so `foregroundStyle`
+    /// tinting applies to both cases.
+    @ViewBuilder
+    func view(size: CGFloat, weight: Font.Weight = .bold) -> some View {
+        switch self {
+        case .system(let name):
+            Image(systemName: name)
+                .font(.system(size: size, weight: weight))
+        case .asset(let name):
+            Image(name)
+                .resizable()
+                .renderingMode(.template)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+        }
+    }
+}
+
 /// One agent CLI/IDE integration (Claude Code, Cursor, ...). A provider
 /// adapter owns everything provider-specific: hook installation, mapping raw
 /// envelope payloads to normalized `AgentEvent`s, deriving interactive prompt
@@ -34,8 +65,8 @@ protocol AgentProvider {
     var displayName: String { get }
     /// Accent color used by the live activity while the session is busy.
     var accentColor: Color { get }
-    /// SF Symbol shown on the live activity's left wing.
-    var iconName: String { get }
+    /// Icon shown on the live activity's left wing (SF Symbol or brand asset).
+    var icon: AgentProviderIcon { get }
 
     /// Whether the user has this provider's live activity enabled.
     var isEnabled: Bool { get }

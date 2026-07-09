@@ -108,8 +108,8 @@ private struct AgentSessionRow: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: manager.provider(for: session.provider)?.iconName ?? "asterisk")
-                .font(.system(size: 14, weight: .bold))
+            (manager.provider(for: session.provider)?.icon ?? .system(name: "asterisk"))
+                .view(size: 14)
                 .foregroundStyle(accent)
                 .frame(width: 20)
 

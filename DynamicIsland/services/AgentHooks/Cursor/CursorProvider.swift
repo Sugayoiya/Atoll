@@ -32,7 +32,7 @@ final class CursorProvider: AgentProvider {
     let displayName = "Cursor"
     // Neutral blue, distinct from Claude's orange (Cursor brand is dark/white).
     let accentColor = Color(red: 0.35, green: 0.55, blue: 0.95)
-    let iconName = "cursorarrow.rays"
+    let icon: AgentProviderIcon = .asset(name: "AgentLogoCursor")
 
     var isEnabled: Bool {
         Defaults[.enableCursorLiveActivity]
