@@ -31,6 +31,8 @@ struct AgentLiveActivity: View {
 
     private let wingPadding: CGFloat = 16
     /// Cap for the status label (tool names have no intrinsic length limit).
+    /// One component of the dynamic cap — the wing is additionally clamped to
+    /// the hosting window's available width (see `maxWingWidth`).
     private let maxStatusTextWidth: CGFloat = 160
 
     private var notchContentHeight: CGFloat {
@@ -77,8 +79,8 @@ struct AgentLiveActivity: View {
     private func iconSection(for session: AgentSessionManager.Session) -> some View {
         let accent = accentColor(for: session)
         return ZStack {
-            Image(systemName: providerIconName(for: session))
-                .font(.system(size: 15, weight: .bold))
+            providerIcon(for: session)
+                .view(size: 15)
                 .foregroundStyle(accent)
                 .opacity(session.status.isBusy ? (isPulsing ? 0.4 : 1.0) : 1.0)
                 .animation(
@@ -115,7 +117,7 @@ struct AgentLiveActivity: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .contentTransition(.opacity)
-                .frame(maxWidth: maxStatusTextWidth, alignment: .trailing)
+                .frame(maxWidth: statusTextMaxWidth(for: session), alignment: .trailing)
             if session.status.isBusy {
                 elapsedIndicator(for: session)
             }
@@ -172,8 +174,8 @@ struct AgentLiveActivity: View {
         session.status == .waitingForInput ? .cyan : manager.accentColor(for: session.provider)
     }
 
-    private func providerIconName(for session: AgentSessionManager.Session) -> String {
-        manager.provider(for: session.provider)?.iconName ?? "asterisk"
+    private func providerIcon(for session: AgentSessionManager.Session) -> AgentProviderIcon {
+        manager.provider(for: session.provider)?.icon ?? .system(name: "asterisk")
     }
 
     private var leftWingWidth: CGFloat {
@@ -185,19 +187,31 @@ struct AgentLiveActivity: View {
     /// occlude the wider wing's inner content (e.g. the session-count badge).
     /// Balancing both wings to the same width keeps the center segment aligned.
     private func wingWidths(for session: AgentSessionManager.Session) -> (left: CGFloat, right: CGFloat) {
-        let balanced = max(leftWingWidth, rightWingWidth(for: session))
+        let balanced = min(max(leftWingWidth, rightWingWidth(for: session)), maxWingWidth)
         return (balanced, balanced)
     }
 
-    private func rightWingWidth(for session: AgentSessionManager.Session) -> CGFloat {
-        let textWidth = min(
-            measureTextWidth(
-                statusText(for: session),
-                font: NSFont.systemFont(ofSize: 12, weight: .semibold)
-            ),
-            maxStatusTextWidth
-        )
-        var width = wingPadding + textWidth
+    /// Maximum total width the closed-notch hosting window can display. The
+    /// window keeps its open-notch width while closed, so anything wider gets
+    /// clipped and the NotchShape's bottom corner curves disappear. Reserve
+    /// the closed bottom corner radius per side so the curves stay visible.
+    private var maxTotalWidth: CGFloat {
+        let windowWidth = Defaults[.enableMinimalisticUI]
+            ? minimalisticOpenNotchSize(isDynamicIslandMode: shouldUseDynamicIslandMode(for: vm.screen)).width
+            : openNotchSize.width
+        let cornerSlack = cornerRadiusInsets.closed.bottom * 2
+        return windowWidth - cornerSlack
+    }
+
+    /// Per-wing cap derived from `maxTotalWidth` (total = 2 wings + notch).
+    private var maxWingWidth: CGFloat {
+        max(76, (maxTotalWidth - vm.closedNotchSize.width) / 2)
+    }
+
+    /// Width of everything in the right wing except the status text (padding,
+    /// pending icon, session badge, elapsed counter, trailing slack).
+    private func fixedRightWingWidth(for session: AgentSessionManager.Session) -> CGFloat {
+        var width = wingPadding
         if manager.pendingPrompt(for: session) != nil {
             // Pending indicator icon (~14pt) + HStack spacing (5pt).
             width += 14 + 5
@@ -219,7 +233,27 @@ struct AgentLiveActivity: View {
             )
             width += badgeTextWidth + 8 + 2 + 5
         }
-        return max(width + 18, 76)
+        return width + 18
+    }
+
+    /// Dynamic cap for the status label: the smaller of the static cap and
+    /// whatever fits inside `maxWingWidth` next to the fixed elements. Used by
+    /// both the measured wing width and the Text's `frame(maxWidth:)` so
+    /// measurement and rendering agree.
+    private func statusTextMaxWidth(for session: AgentSessionManager.Session) -> CGFloat {
+        let available = maxWingWidth - fixedRightWingWidth(for: session)
+        return max(40, min(maxStatusTextWidth, available))
+    }
+
+    private func rightWingWidth(for session: AgentSessionManager.Session) -> CGFloat {
+        let textWidth = min(
+            measureTextWidth(
+                statusText(for: session),
+                font: NSFont.systemFont(ofSize: 12, weight: .semibold)
+            ),
+            statusTextMaxWidth(for: session)
+        )
+        return max(fixedRightWingWidth(for: session) + textWidth, 76)
     }
 
     private func measureTextWidth(_ text: String, font: NSFont) -> CGFloat {
