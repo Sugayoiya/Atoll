@@ -59,6 +59,24 @@ wing, sized off `vm.effectiveClosedNotchHeight` and shown only when
 - `LiveActivityModifier.swift` (`.liveActivity(for:left:right:)`) is a legacy abstraction;
   most activities build their HStack directly. Prefer the direct pattern.
 
+> **Warning — wing width must be clamped to the hosting window.** The closed-notch
+> window is sized to `openNotchSize.width` (or `minimalisticOpenNotchSize(...)` in
+> minimalistic mode), and the outer `NotchShape` keeps a horizontal padding equal to
+> `cornerRadiusInsets.closed.bottom` (14pt) per side. If unbounded content (e.g. a
+> long status string) widens the wings past
+> `windowWidth − 2 × cornerRadiusInsets.closed.bottom`, the shape gets clipped and its
+> left/right rounded corners visually disappear. Clamp the wing width against that
+> budget and apply the SAME derived max to both the measured width (`NSAttributedString`
+> measurement) and the rendered `Text.frame(maxWidth:)` so they can't drift.
+> See `components/AgentHooks/AgentLiveActivity.swift` for the reference implementation.
+
+- **Brand/provider icons**: prefer bundled monochrome template imagesets over
+  approximate SF Symbols (`Assets.xcassets/AgentLogoClaude.imageset`, `AgentLogoCursor.imageset`,
+  `Github.imageset`). SVG assets require explicit `width`/`height` attributes on the
+  root element (Xcode's asset catalog SVG parser rejects viewBox-only files), plus
+  `"template-rendering-intent": "template"` and `"preserves-vector-representation": true`
+  in `Contents.json` so `foregroundStyle` tinting works.
+
 ---
 
 ## Animations
