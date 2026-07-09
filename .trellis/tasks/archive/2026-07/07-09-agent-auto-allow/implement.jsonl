@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "系统层（managers/services）总则与 Pre-Development Checklist"}
+{"file": ".trellis/spec/backend/claude-hook-socket-protocol.md", "reason": "hook <-> Atoll socket 协议契约：决策回复 schema 与回落语义，auto-allow 在此协议上抢答"}
+{"file": ".trellis/spec/backend/persistence-guidelines.md", "reason": "新增 Defaults key（含 Codable 数组）的持久化约定"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "读取外部文件/SQLite 失败时的静默降级与日志约定"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "SwiftUI UI 层总则（notch 按钮与设置页改动）"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "notch 视图与 Live Activity 组件写法约定"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "@Default 绑定与 manager 单例状态约定"}
+{"file": ".trellis/tasks/07-09-agent-auto-allow/research/cursor-allowlist-sources.md", "reason": "Cursor allowlist 三个来源的路径/格式/读取方式与 Atoll 现有决策挂点（本机已验证）"}
