@@ -242,3 +242,37 @@ Added notch 'Always Allow' that stores smart-prefix rules (first word, or two wo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: AskUserQuestion notch limits configurable + multiSelect/multi-question
+
+**Date**: 2026-07-09
+**Task**: AskUserQuestion notch limits configurable + multiSelect/multi-question
+**Branch**: `feat/claude-code-live-activity`
+
+### Summary
+
+Made AskUserQuestion notch pre-answering limits configurable via Defaults (max options 6, label 30, combined 120; Steppers in Settings) and added multiSelect + multi-question payload support with toggleable chips, wrapping ChipFlowLayout, and explicit Submit button. Over-limit payloads still fall back to terminal. Manually verified via socket test harness (4 cases incl. comma-joined multi answers and fallback); updated claude-hook-socket-protocol spec.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cb197a8` | (see git log) |
+| `1af301e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
