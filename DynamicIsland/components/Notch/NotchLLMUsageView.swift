@@ -31,6 +31,9 @@ struct NotchLLMUsageView: View {
             }
         }
         .padding(.horizontal, 8)
+        // Notch background is always black regardless of system appearance,
+        // so pin this view to dark mode to keep .primary/.secondary readable.
+        .environment(\.colorScheme, .dark)
         .onAppear { manager.refreshAll() }
     }
 
