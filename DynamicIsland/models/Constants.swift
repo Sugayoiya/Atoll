@@ -1144,6 +1144,11 @@ extension Defaults.Keys {
     /// UI budget (seconds) for a pending notch prompt; the rest of the hook
     /// timeout chain is derived from it (see `AgentPromptTimeout`).
     static let agentPromptTimeoutSeconds = Key<Double>("agentPromptTimeoutSeconds", default: 60)
+    /// Master switch for Atoll's own auto-allow rules; turning it off keeps
+    /// the stored rules but stops matching them.
+    static let agentAutoAllowEnabled = Key<Bool>("agentAutoAllowEnabled", default: true)
+    /// User-created "always allow" word-prefix rules for agent shell prompts.
+    static let agentAutoAllowRules = Key<[AgentAutoAllowRule]>("agentAutoAllowRules", default: [])
 
     // MARK: Claude Code Live Activity
     static let enableClaudeCodeLiveActivity = Key<Bool>("enableClaudeCodeLiveActivity", default: false)
@@ -1154,6 +1159,9 @@ extension Defaults.Keys {
     // MARK: Cursor Live Activity
     static let enableCursorLiveActivity = Key<Bool>("enableCursorLiveActivity", default: false)
     static let cursorPermissionPromptEnabled = Key<Bool>("cursorPermissionPromptEnabled", default: false)
+    /// Auto-allow Cursor shell prompts that match the user's existing Cursor
+    /// allowlists (permissions.json / state.vscdb). Read-only; allow only.
+    static let cursorAllowlistAutoAllowEnabled = Key<Bool>("cursorAllowlistAutoAllowEnabled", default: true)
     
     // MARK: ColorPicker Feature
     static let enableColorPickerFeature = Key<Bool>("enableColorPickerFeature", default: true)

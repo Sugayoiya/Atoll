@@ -197,7 +197,6 @@
 				54078F29304A9DBBEFBDF932 /* DynamicIslandUITests.swift */,
 				DAA671E7B1B26733F02166C5 /* Info.plist */,
 			);
-			name = DynamicIslandUITests;
 			path = DynamicIslandUITests;
 			sourceTree = "<group>";
 		};

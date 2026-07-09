@@ -200,6 +200,22 @@ sock.close(); sys.exit(0)
   concurrent client queue, never the main thread; the `@MainActor` handler runs
   in a detached Task and signals the semaphore (an abandoned post-timeout signal
   is harmless).
+- **Auto-allow short circuit** (since 07-09): after `promptRequest(for:)`
+  returns `.permission`, `AgentSessionManager` first checks the request's
+  `rawCommand` (full shell command; nil for MCP) against Atoll's own
+  word-prefix rules (`Defaults[.agentAutoAllowRules]`, toggle
+  `agentAutoAllowEnabled`) and, for Cursor only, the user's existing Cursor
+  allowlists via `CursorAllowlistReader` (toggle
+  `cursorAllowlistAutoAllowEnabled`). Matching is compound-aware: the command
+  is split on top-level connectors (`&&`, `||`, `;`, `|`, `&`, newline;
+  quoted content never splits) and EVERY segment must word-prefix-match a
+  rule for the whole command to be allowed; commands containing command
+  substitution (`$(`, backticks) or process substitution (`<(`, `>(`) are
+  never auto-allowed (conservative reject — see
+  `AgentCommandMatcher.command(_:isFullyAllowedBy:)`). A hit replies `allow`
+  immediately — no pendingPrompts entry, no notch UI; wire schemas are
+  unchanged. Only allow is pre-answered; deny always falls back to the
+  provider's own flow.
 - **Prompts answered in the Agents tab** (since 07-04): the closed-notch live
   activity only shows status; expanding the notch while any prompt is pending
   auto-switches to the Agents tab where each session's Allow/Deny or question

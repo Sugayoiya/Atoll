@@ -135,6 +135,8 @@ final class ClaudeProvider: AgentProvider {
                 sessionId: sessionId,
                 toolName: tool,
                 inputSummary: ClaudeToolSummary.permissionSummary(tool: tool, input: toolInput),
+                // Full command for auto-allow rule matching (Bash only today).
+                rawCommand: tool == "Bash" ? toolInput?["command"]?.stringValue : nil,
                 encodeDecision: { decision in
                     // PermissionRequest has no "ask": no reply = Claude shows
                     // its normal permission dialog.

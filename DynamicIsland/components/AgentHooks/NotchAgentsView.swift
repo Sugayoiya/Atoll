@@ -191,6 +191,22 @@ private struct AgentSessionRow: View {
                 decisionButton(label: String(localized: "Deny"), systemName: "xmark.circle.fill", tint: .red) {
                     manager.answerPendingPermission(sessionKey: session.id, allow: false)
                 }
+                // Shell commands only: stores a smart-prefix auto-allow rule
+                // (manageable in Settings) and allows this call. Compound
+                // commands (multiple segments) or commands with substitution
+                // constructs never offer the button — a single prefix rule
+                // can't safely cover them.
+                if let command = request.rawCommand,
+                   AgentCommandMatcher.canSuggestRule(for: command),
+                   let prefix = AgentCommandMatcher.smartPrefix(for: command) {
+                    decisionButton(
+                        label: String(localized: "Always Allow \"\(prefix)\""),
+                        systemName: "checkmark.seal.fill",
+                        tint: .mint
+                    ) {
+                        manager.alwaysAllowPendingPermission(sessionKey: session.id)
+                    }
+                }
             }
         }
     }

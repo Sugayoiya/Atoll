@@ -268,10 +268,47 @@ final class AgentSessionManager: ObservableObject {
         }
         switch prompt {
         case .permission(let request):
+            // Auto-allow (Atoll rules / Cursor allowlist) short-circuits the
+            // notch prompt entirely: reply immediately, never enter
+            // pendingPrompts. Session status display is unaffected (mapEvent
+            // already ran above).
+            if let reply = autoAllowReply(for: request) {
+                return reply
+            }
             return await present(prompt: .permission(request))
         case .question(let request):
             return await present(prompt: .question(request))
         }
+    }
+
+    /// Returns the encoded allow reply when the request's shell command
+    /// matches an Atoll auto-allow rule or (Cursor only) the user's existing
+    /// Cursor allowlist. nil = no auto decision, show the notch prompt.
+    private func autoAllowReply(for request: AgentPermissionRequest) -> Data? {
+        guard let command = request.rawCommand,
+              !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        if Defaults[.agentAutoAllowEnabled] {
+            let rules = Defaults[.agentAutoAllowRules]
+                .filter { $0.provider == nil || $0.provider == request.provider }
+                .map(\.ruleText)
+            if AgentCommandMatcher.command(command, isFullyAllowedBy: rules) {
+                Logger.log("Auto-allowed \(request.provider) command by Atoll rule", category: .debug)
+                return request.encodeDecision(.allow(reason: "Auto-allowed by Atoll rule"))
+            }
+        }
+
+        if request.provider == CursorProvider.providerId, Defaults[.cursorAllowlistAutoAllowEnabled] {
+            let entries = CursorAllowlistReader.shared.allowlistEntries(workspaceRoot: request.workspaceRoot)
+            if AgentCommandMatcher.command(command, isFullyAllowedBy: entries) {
+                Logger.log("Auto-allowed Cursor command by Cursor allowlist", category: .debug)
+                return request.encodeDecision(.allow(reason: "Auto-allowed by Cursor allowlist"))
+            }
+        }
+
+        return nil
     }
 
     /// Presents the prompt in the Agents tab and suspends until the user
@@ -318,6 +355,23 @@ final class AgentSessionManager: ObservableObject {
             ? .allow(reason: "Allowed from Atoll notch")
             : .deny(reason: "Denied from Atoll notch")
         resolvePendingPrompt(sessionKey: sessionKey, with: request.encodeDecision(decision))
+    }
+
+    /// Called from the Agents tab when the user taps "Always Allow": stores a
+    /// smart-prefix auto-allow rule (first word, or first two words for
+    /// multi-subcommand tools like git/npm) and resolves the prompt with allow.
+    func alwaysAllowPendingPermission(sessionKey: String) {
+        guard case .permission(let request)? = pendingPrompts[sessionKey] else { return }
+        if let command = request.rawCommand,
+           AgentCommandMatcher.canSuggestRule(for: command),
+           let prefix = AgentCommandMatcher.smartPrefix(for: command) {
+            var rules = Defaults[.agentAutoAllowRules]
+            if !rules.contains(where: { $0.ruleText == prefix && $0.provider == nil }) {
+                rules.append(AgentAutoAllowRule(ruleText: prefix))
+                Defaults[.agentAutoAllowRules] = rules
+            }
+        }
+        resolvePendingPrompt(sessionKey: sessionKey, with: request.encodeDecision(.allow(reason: "Allowed from Atoll notch")))
     }
 
     /// Called from the Agents tab when the user taps an answer option.

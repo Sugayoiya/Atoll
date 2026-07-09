@@ -6340,6 +6340,16 @@
         }
       }
     },
+    "Agent Auto-Allow Rules" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代理自动允许规则"
+          }
+        }
+      }
+    },
     "Agent Prompt Timeout" : {
       "localizations" : {
         "zh-Hans" : {
@@ -7724,6 +7734,16 @@
         }
       },
       "shouldTranslate" : false
+    },
+    "Always Allow \"%@\"" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "始终允许 \"%@\""
+          }
+        }
+      }
     },
     "Always hide in fullscreen" : {
       "localizations" : {
@@ -9373,6 +9393,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已授权"
+          }
+        }
+      }
+    },
+    "Auto-allow commands already in Cursor's allowlist" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动允许 Cursor 允许列表中已有的命令"
+          }
+        }
+      }
+    },
+    "Auto-allow commands matching my rules" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动允许匹配我的规则的命令"
           }
         }
       }
@@ -14496,6 +14536,16 @@
         }
       }
     },
+    "Clear All Rules" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除所有规则"
+          }
+        }
+      }
+    },
     "Clear Clipboard History" : {
       "localizations" : {
         "fr" : {
@@ -16565,6 +16615,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "即将推出"
+          }
+        }
+      }
+    },
+    "Commands matching a rule (word-prefix match, e.g. \"git push\") are allowed automatically without showing the notch prompt. Rules are created from the \"Always Allow\" button on a permission prompt. Turning the toggle off keeps the rules but stops applying them." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匹配规则的命令（按词前缀匹配，例如 \"git push\"）将自动放行，不再显示刘海提示。规则通过权限提示上的\"始终允许\"按钮创建。关闭开关会保留规则但不再生效。"
           }
         }
       }
@@ -20739,6 +20799,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除颜色"
+          }
+        }
+      }
+    },
+    "Delete rule" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除规则"
           }
         }
       }
@@ -42893,6 +42963,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未找到结果"
+          }
+        }
+      }
+    },
+    "No rules yet. Tap \"Always Allow\" on a permission prompt in the notch to add one." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无规则。在刘海的权限提示上点按\"始终允许\"即可添加。"
           }
         }
       }

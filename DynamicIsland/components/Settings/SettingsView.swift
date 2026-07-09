@@ -3987,6 +3987,8 @@ struct LiveActivitiesSettings: View {
     @Default(.focusIndicatorNonPersistent) var focusIndicatorNonPersistent
     @Default(.capsLockIndicatorTintMode) var capsLockTintMode
     @Default(.agentPromptTimeoutSeconds) var agentPromptTimeoutSeconds
+    @Default(.agentAutoAllowEnabled) var agentAutoAllowEnabled
+    @Default(.agentAutoAllowRules) var agentAutoAllowRules
 
     private func highlightID(_ title: String) -> String {
         SettingsTab.liveActivities.highlightID(for: title)
@@ -4235,6 +4237,11 @@ struct LiveActivitiesSettings: View {
                     Text("Ask in the notch before Cursor runs shell or MCP tools")
                 }
                 .settingsHighlight(id: highlightID("Ask in the notch before Cursor runs shell or MCP tools"))
+
+                Defaults.Toggle(key: .cursorAllowlistAutoAllowEnabled) {
+                    Text("Auto-allow commands already in Cursor's allowlist")
+                }
+                .settingsHighlight(id: highlightID("Auto-allow commands already in Cursor's allowlist"))
             } header: {
                 Text("Cursor Live Activity")
             } footer: {
@@ -4259,6 +4266,48 @@ struct LiveActivitiesSettings: View {
                 Text("Agent Prompt Timeout")
             } footer: {
                 Text("How long permission and question prompts wait in the notch before falling back to the agent's own flow. Shared by Claude Code and Cursor; changing it updates the installed hook scripts and their configured timeouts automatically.")
+            }
+
+            Section {
+                Defaults.Toggle(key: .agentAutoAllowEnabled) {
+                    Text("Auto-allow commands matching my rules")
+                }
+                .settingsHighlight(id: highlightID("Auto-allow commands matching my rules"))
+
+                if agentAutoAllowRules.isEmpty {
+                    Text("No rules yet. Tap \"Always Allow\" on a permission prompt in the notch to add one.")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                } else {
+                    ForEach(agentAutoAllowRules) { rule in
+                        HStack {
+                            Text(rule.ruleText)
+                                .font(.system(.body, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Button {
+                                agentAutoAllowRules.removeAll { $0.id == rule.id }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Delete rule")
+                        }
+                        .opacity(agentAutoAllowEnabled ? 1 : 0.5)
+                    }
+
+                    Button(role: .destructive) {
+                        agentAutoAllowRules.removeAll()
+                    } label: {
+                        Text("Clear All Rules")
+                    }
+                }
+            } header: {
+                Text("Agent Auto-Allow Rules")
+            } footer: {
+                Text("Commands matching a rule (word-prefix match, e.g. \"git push\") are allowed automatically without showing the notch prompt. Rules are created from the \"Always Allow\" button on a permission prompt. Turning the toggle off keeps the rules but stops applying them.")
             }
         }
         .navigationTitle("Live Activities")

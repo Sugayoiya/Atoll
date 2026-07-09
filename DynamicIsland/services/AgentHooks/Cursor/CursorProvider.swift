@@ -108,15 +108,28 @@ final class CursorProvider: AgentProvider {
 
         let toolName: String
         let inputSummary: String
+        // Full command for auto-allow matching; nil for MCP calls (no shell
+        // command → never auto-allowed).
+        let rawCommand: String?
         switch envelope.event {
         case "beforeShellExecution":
             toolName = "Shell"
-            inputSummary = Self.truncate(payload["command"]?.stringValue ?? "", maxLength: 120)
+            rawCommand = payload["command"]?.stringValue
+            inputSummary = Self.truncate(rawCommand ?? "", maxLength: 120)
         case "beforeMCPExecution":
             toolName = Self.mcpToolName(payload: payload)
+            rawCommand = nil
             inputSummary = Self.truncate(Self.mcpSummary(payload: payload), maxLength: 120)
         default:
             return nil
+        }
+
+        // workspace_roots[0] locates the workspace-level Cursor allowlist.
+        let workspaceRoot: String?
+        if case .array(let roots)? = payload["workspace_roots"], let first = roots.first {
+            workspaceRoot = first.stringValue
+        } else {
+            workspaceRoot = nil
         }
 
         return .permission(AgentPermissionRequest(
@@ -124,6 +137,8 @@ final class CursorProvider: AgentProvider {
             sessionId: sessionId,
             toolName: toolName,
             inputSummary: inputSummary,
+            rawCommand: rawCommand,
+            workspaceRoot: workspaceRoot,
             encodeDecision: { decision in
                 // Flat Cursor reply — NO hookSpecificOutput nesting. "ask" maps
                 // to no reply: Cursor tolerates it in the schema but treating

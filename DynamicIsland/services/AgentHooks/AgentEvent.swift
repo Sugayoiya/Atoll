@@ -80,7 +80,31 @@ struct AgentPermissionRequest: Identifiable {
     let toolName: String
     /// Concise, truncated summary of the tool input (e.g. the bash command).
     let inputSummary: String
+    /// Full, untruncated shell command for auto-allow rule matching.
+    /// nil for non-shell tools (e.g. MCP calls) — those never auto-allow.
+    let rawCommand: String?
+    /// Workspace root from the hook payload (Cursor `workspace_roots[0]`),
+    /// used to locate the workspace-level Cursor allowlist. nil otherwise.
+    let workspaceRoot: String?
     let encodeDecision: @Sendable (AgentDecision) -> Data?
+
+    init(
+        provider: String,
+        sessionId: String,
+        toolName: String,
+        inputSummary: String,
+        rawCommand: String? = nil,
+        workspaceRoot: String? = nil,
+        encodeDecision: @escaping @Sendable (AgentDecision) -> Data?
+    ) {
+        self.provider = provider
+        self.sessionId = sessionId
+        self.toolName = toolName
+        self.inputSummary = inputSummary
+        self.rawCommand = rawCommand
+        self.workspaceRoot = workspaceRoot
+        self.encodeDecision = encodeDecision
+    }
 }
 
 /// A question awaiting a chosen option from the notch (Claude-only today).
