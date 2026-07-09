@@ -209,3 +209,36 @@ Moved the Claude Code notch permission prompt from PreToolUse to the PermissionR
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: Agent permission auto-allow: Atoll rules + Cursor allowlist import
+
+**Date**: 2026-07-09
+**Task**: Agent permission auto-allow: Atoll rules + Cursor allowlist import
+**Branch**: `feat/claude-code-live-activity`
+
+### Summary
+
+Added notch 'Always Allow' that stores smart-prefix rules (first word, or two words for multi-subcommand tools) in Defaults and auto-approves matching shell permission prompts for Claude/Cursor; compound commands are split on top-level shell connectors (quote-aware) and every segment must match, with command/process substitution conservatively never auto-allowed; Cursor prompts additionally honor the user's Cursor allowlist read from permissions.json (global+workspace) and state.vscdb (read-only SQLite, mtime-cached). Settings page gained rule management and toggles. Verified live end-to-end: rule hit, compound all-hit, compound partial-miss prompting, substitution rejection, and derived timeout chain on disk.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `793738a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
