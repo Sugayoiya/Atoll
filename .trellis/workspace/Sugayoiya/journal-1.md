@@ -176,3 +176,36 @@ Fixed closed-notch agent live activity overflowing the notch window (wing width 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Claude permission prompt via PermissionRequest + configurable prompt timeout
+
+**Date**: 2026-07-09
+**Task**: Claude permission prompt via PermissionRequest + configurable prompt timeout
+**Branch**: `feat/claude-code-live-activity`
+
+### Summary
+
+Moved the Claude Code notch permission prompt from PreToolUse to the PermissionRequest hook event so allowlisted commands no longer get gated by the notch prompt; added the shared agent prompt timeout setting (10-300s slider in Settings, default 60) with the whole timeout chain (server +5, script recv +10, host hook timeout +20) derived from it and hooks auto-reinstalled on change; script versions bumped to Claude v6 / Cursor v4 and the socket protocol spec updated.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1712bc1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
