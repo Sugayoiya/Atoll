@@ -276,3 +276,36 @@ Made AskUserQuestion notch pre-answering limits configurable via Defaults (max o
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: Claude 注入状态语义化
+
+**Date**: 2026-07-10
+**Task**: Claude 注入状态语义化
+**Branch**: `feat/claude-code-live-activity`
+
+### Summary
+
+将 Claude Code 的 XML 式 UserPromptSubmit 注入消息语义化为后台任务、命令和系统提醒状态；增加容错解析与回归测试，并完成 socket 注入端到端验证。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `66c47da` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
