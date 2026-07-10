@@ -64,6 +64,24 @@ For Claude, `payload` carries Claude's raw hook input (`session_id`, `cwd`,
 `hook_event_name`, `tool_name`, `tool_input`, `prompt`, ...), decoded via
 `JSONValue`.
 
+`UserPromptSubmit.prompt` can be either a human prompt or a Claude-generated
+XML-like notification. The Claude provider normalizes the latter once, before
+the session manager stores `promptPreview`, so closed and expanded notch views
+always consume the same display text:
+
+- `<task-notification>` extracts `status` and `<summary>` into a background
+  task label; missing fields fall back to `Background task notification`.
+- `<command-name>`, `<bash-input>`, `<local-command-stdout>`, and
+  `<system-reminder>` get their respective semantic labels plus readable body
+  text when present.
+- Other tag-like prompts have wrappers stripped; an empty result clears the
+  preview so the UI falls back to `Thinking…`.
+- Human prompts retain the existing 200-character prefix behavior.
+
+This is deliberately regex-tolerant rather than strict XML parsing: Claude
+does not publish a stable schema, and malformed or reordered fields must never
+crash the hook path or expose raw tag text.
+
 Reply JSON is provider-specific, built by the provider adapter's decision
 encoder. Claude (Atoll → script → Claude stdout) — `ClaudeHookResponse`:
 

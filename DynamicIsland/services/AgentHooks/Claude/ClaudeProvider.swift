@@ -56,7 +56,7 @@ final class ClaudeProvider: AgentProvider {
         case "SessionEnd":
             kind = .sessionEnd
         case "UserPromptSubmit":
-            let preview = payload["prompt"]?.stringValue.map { String($0.prefix(200)) }
+            let preview = payload["prompt"]?.stringValue.flatMap { ClaudeInjectedPrompt.preview(for: $0) }
             kind = .promptSubmit(preview: preview)
         case "PreToolUse":
             kind = .toolWillRun(tool: tool)

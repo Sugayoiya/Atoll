@@ -446,9 +446,12 @@ final class AgentSessionManager: ObservableObject {
         case .clear: toolSummary = .some(nil)
         case .set(let summary): toolSummary = .some(summary)
         }
-        let promptPreview: String?
+        let promptPreview: String?? // .some(nil) clears, nil keeps the current value
         if case .promptSubmit(let preview) = event.kind {
-            promptPreview = preview?.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = preview?
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            promptPreview = .some((normalized?.isEmpty == false) ? normalized : nil)
         } else {
             promptPreview = nil
         }
@@ -466,7 +469,7 @@ final class AgentSessionManager: ObservableObject {
                 if let toolSummary {
                     sessions[index].toolSummary = toolSummary
                 }
-                if let promptPreview, !promptPreview.isEmpty {
+                if let promptPreview {
                     sessions[index].promptPreview = promptPreview
                 }
             } else {
@@ -478,7 +481,7 @@ final class AgentSessionManager: ObservableObject {
                     lastUpdated: now,
                     statusChangedAt: now,
                     toolSummary: toolSummary ?? nil,
-                    promptPreview: (promptPreview?.isEmpty == false) ? promptPreview : nil
+                    promptPreview: promptPreview ?? nil
                 ))
             }
         }
