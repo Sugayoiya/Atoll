@@ -41,33 +41,6 @@ enum SneakContentType: Equatable {
 }
 
 extension SneakContentType {
-    static func == (lhs: SneakContentType, rhs: SneakContentType) -> Bool {
-        switch (lhs, rhs) {
-        case (.brightness, .brightness),
-             (.volume, .volume),
-             (.backlight, .backlight),
-             (.music, .music),
-             (.mic, .mic),
-             (.battery, .battery),
-             (.download, .download),
-             (.timer, .timer),
-             (.reminder, .reminder),
-             (.recording, .recording),
-             (.doNotDisturb, .doNotDisturb),
-             (.bluetoothAudio, .bluetoothAudio),
-             (.privacy, .privacy),
-             (.lockScreen, .lockScreen),
-             (.capsLock, .capsLock):
-            return true
-        case let (.extensionLiveActivity(lb, la), .extensionLiveActivity(rb, ra)):
-            return lb == rb && la == ra
-        default:
-            return false
-        }
-    }
-}
-
-extension SneakContentType {
     var isExtensionPayload: Bool {
         if case .extensionLiveActivity = self {
             return true
