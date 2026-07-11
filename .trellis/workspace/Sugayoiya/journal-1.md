@@ -309,3 +309,40 @@ Made AskUserQuestion notch pre-answering limits configurable via Defaults (max o
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: 隐藏 pending 等待时的误导 elapsed 计数 + 重构收敛
+
+**Date**: 2026-07-11
+**Task**: 隐藏 pending 等待时的误导 elapsed 计数 + 重构收敛
+**Branch**: `feat/claude-code-live-activity`
+
+### Summary
+
+抽取共享 AgentElapsedIndicator（busy 且无 pending、2s reveal delay 才显示），present() 时清 busy；合并三份 pending-aware statusText 为 AgentSessionManager.displayStatusText；删除临时 hook 流量调试日志；ContentView isAgentLiveActivityVisible 成为唯一事实来源并抑制冗余 claudeCode sneak peek；修复 SneakContentType 手写 == 漏 case 的 bug（改用合成 Equatable）；spec 记录相关约定。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d112bfe` | (see git log) |
+| `14a0501` | (see git log) |
+| `30817d0` | (see git log) |
+| `efdc824` | (see git log) |
+| `b19ff98` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

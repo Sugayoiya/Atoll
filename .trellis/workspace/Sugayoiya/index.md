@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 9
-- **Last Active**: 2026-07-10
+- **Total Sessions**: 10
+- **Last Active**: 2026-07-11
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~311 | Active |
+| `journal-1.md` | ~348 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 10 | 2026-07-11 | 隐藏 pending 等待时的误导 elapsed 计数 + 重构收敛 | `d112bfe`, `14a0501`, `30817d0`, `efdc824`, `b19ff98` | `feat/claude-code-live-activity` |
 | 9 | 2026-07-10 | Claude 注入状态语义化 | `66c47da` | `feat/claude-code-live-activity` |
 | 8 | 2026-07-09 | AskUserQuestion notch limits configurable + multiSelect/multi-question | `cb197a8`, `1af301e` | `feat/claude-code-live-activity` |
 | 7 | 2026-07-09 | Agent permission auto-allow: Atoll rules + Cursor allowlist import | `793738a` | `feat/claude-code-live-activity` |
