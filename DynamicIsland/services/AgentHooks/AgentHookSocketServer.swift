@@ -216,9 +216,17 @@ final class AgentHookSocketServer: @unchecked Sendable {
             return
         }
 
-        guard !allData.isEmpty,
-              let envelope = try? JSONDecoder().decode(AgentHookEnvelope.self, from: allData),
-              let eventHandler else {
+        guard !allData.isEmpty else { return }
+        guard let eventHandler else { return }
+        let envelope: AgentHookEnvelope
+        do {
+            envelope = try JSONDecoder().decode(AgentHookEnvelope.self, from: allData)
+        } catch {
+            let preview = String(data: allData.prefix(500), encoding: .utf8) ?? "<binary \(allData.count)B>"
+            Logger.log(
+                "Agent hook socket decode failed: \(error.localizedDescription); raw=\(preview)",
+                category: .warning
+            )
             return
         }
 
