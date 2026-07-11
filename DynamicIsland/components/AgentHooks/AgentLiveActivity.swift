@@ -95,8 +95,10 @@ struct AgentLiveActivity: View {
 
     private func statusSection(for session: AgentSessionManager.Session) -> some View {
         let accent = accentColor(for: session)
+        let pending = manager.pendingPrompt(for: session)
+        let hasPendingPrompt = pending != nil
         return HStack(spacing: 5) {
-            if let prompt = manager.pendingPrompt(for: session) {
+            if let prompt = pending {
                 // Pending decision indicator (status only — the interactive
                 // controls live in the expanded-notch Agents tab).
                 Image(systemName: pendingIconName(for: prompt))
@@ -111,35 +113,18 @@ struct AgentLiveActivity: View {
                     .padding(.vertical, 1)
                     .background(Capsule().fill(accent))
             }
-            Text(statusText(for: session))
+            Text(AgentSessionManager.displayStatusText(for: session, pending: pending))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(accent)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .contentTransition(.opacity)
                 .frame(maxWidth: statusTextMaxWidth(for: session), alignment: .trailing)
-            if session.status.isBusy {
-                elapsedIndicator(for: session)
+            if AgentElapsedIndicator.couldShow(session: session, hasPendingPrompt: hasPendingPrompt) {
+                AgentElapsedIndicator(session: session, hasPendingPrompt: hasPendingPrompt)
             }
         }
         .frame(height: notchContentHeight, alignment: .center)
-    }
-
-    /// Small dimmed "m:ss" counter showing how long the current status has
-    /// been running (thinking / tool / compacting).
-    private func elapsedIndicator(for session: AgentSessionManager.Session) -> some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            Text(elapsedText(since: session.statusChangedAt, now: context.date))
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.55))
-                .lineLimit(1)
-        }
-    }
-
-    private func elapsedText(since start: Date, now: Date) -> String {
-        let seconds = max(0, Int(now.timeIntervalSince(start)))
-        let minutes = min(seconds / 60, 99)
-        return String(format: "%d:%02d", minutes, seconds % 60)
     }
 
     private func pendingIconName(for prompt: AgentSessionManager.PendingPrompt) -> String {
@@ -153,20 +138,6 @@ struct AgentLiveActivity: View {
         switch prompt {
         case .permission: return .orange
         case .question: return .cyan
-        }
-    }
-
-    private func statusText(for session: AgentSessionManager.Session) -> String {
-        switch session.status {
-        case .runningTool(let tool):
-            if let summary = session.toolSummary, summary != tool {
-                return "\(tool) · \(summary)"
-            }
-            return tool
-        case .thinking:
-            return session.promptPreview ?? session.status.label
-        default:
-            return session.status.label
         }
     }
 
@@ -211,19 +182,21 @@ struct AgentLiveActivity: View {
     /// Width of everything in the right wing except the status text (padding,
     /// pending icon, session badge, elapsed counter, trailing slack).
     private func fixedRightWingWidth(for session: AgentSessionManager.Session) -> CGFloat {
+        let hasPendingPrompt = manager.pendingPrompt(for: session) != nil
         var width = wingPadding
-        if manager.pendingPrompt(for: session) != nil {
+        if hasPendingPrompt {
             // Pending indicator icon (~14pt) + HStack spacing (5pt).
             width += 14 + 5
         }
-        if session.status.isBusy {
+        if AgentElapsedIndicator.couldShow(session: session, hasPendingPrompt: hasPendingPrompt) {
             // Elapsed counter: reserve for "00:00" so the wing doesn't resize
             // every second while the counter ticks + HStack spacing (5pt).
-            let elapsedWidth = measureTextWidth(
-                "00:00",
-                font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium)
-            )
-            width += elapsedWidth + 5
+            // Deliberately reserved whenever the counter COULD appear (busy,
+            // no pending prompt) rather than only after the 2s reveal delay,
+            // so the wing doesn't jump when the counter fades in. The
+            // indicator itself keeps a matching clear-frame spacer (no digit
+            // glyphs) during the delay.
+            width += AgentElapsedIndicator.reservedWidth + 5
         }
         if manager.sessions.count > 1 {
             // Badge: measured digits + horizontal padding (4pt x2) + capsule stroke slack + HStack spacing (5pt)
@@ -248,7 +221,7 @@ struct AgentLiveActivity: View {
     private func rightWingWidth(for session: AgentSessionManager.Session) -> CGFloat {
         let textWidth = min(
             measureTextWidth(
-                statusText(for: session),
+                AgentSessionManager.displayStatusText(for: session, pending: manager.pendingPrompt(for: session)),
                 font: NSFont.systemFont(ofSize: 12, weight: .semibold)
             ),
             statusTextMaxWidth(for: session)

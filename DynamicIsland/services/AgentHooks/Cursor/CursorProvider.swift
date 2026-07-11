@@ -79,8 +79,9 @@ final class CursorProvider: AgentProvider {
             kind = .subagentStopped
             toolSummary = .clear
         case "beforeShellExecution":
-            // Permission-control hook doubles as a display event so the
-            // session status updates even when the prompt isn't shown.
+            // Keep runningTool for the tool label / summary; `present()` clears
+            // busy to waitingForInput for the Allow wait (mirrors Claude's
+            // PermissionRequest path without firing sneak-peek on every shell).
             kind = .toolWillRun(tool: "Shell")
             if let command = payload["command"]?.stringValue {
                 toolSummary = .set(Self.truncate(command, maxLength: 60))

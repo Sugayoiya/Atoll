@@ -124,7 +124,7 @@ private struct AgentSessionRow: View {
                         .foregroundStyle(.gray)
                         .lineLimit(1)
                 }
-                Text(statusText)
+                Text(AgentSessionManager.displayStatusText(for: session, pending: pendingPrompt))
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.white.opacity(0.6))
                     .lineLimit(1)
@@ -133,36 +133,13 @@ private struct AgentSessionRow: View {
 
             Spacer(minLength: 4)
 
-            if session.status.isBusy {
-                elapsedIndicator
-            } else {
+            if AgentElapsedIndicator.couldShow(session: session, hasPendingPrompt: pendingPrompt != nil) {
+                AgentElapsedIndicator(session: session, hasPendingPrompt: pendingPrompt != nil)
+            } else if !session.status.isBusy {
                 Image(systemName: session.status.iconName)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.cyan)
             }
-        }
-    }
-
-    private var statusText: String {
-        switch session.status {
-        case .runningTool(let tool):
-            if let summary = session.toolSummary, summary != tool {
-                return "\(tool) · \(summary)"
-            }
-            return tool
-        case .thinking:
-            return session.promptPreview ?? session.status.label
-        default:
-            return session.status.label
-        }
-    }
-
-    private var elapsedIndicator: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let seconds = max(0, Int(context.date.timeIntervalSince(session.statusChangedAt)))
-            Text(String(format: "%d:%02d", min(seconds / 60, 99), seconds % 60))
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.55))
         }
     }
 

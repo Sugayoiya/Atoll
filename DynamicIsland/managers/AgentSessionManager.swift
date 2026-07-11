@@ -252,9 +252,7 @@ final class AgentSessionManager: ObservableObject {
     /// answerable tool calls, blocks (bounded) on a notch prompt.
     /// Returning nil sends no reply, so the provider's normal flow runs.
     private func process(envelope: AgentHookEnvelope) async -> Data? {
-        guard let provider = providers[envelope.provider], provider.isEnabled else {
-            return nil
-        }
+        guard let provider = providers[envelope.provider], provider.isEnabled else { return nil }
 
         if let event = provider.mapEvent(envelope) {
             handle(event: event)
@@ -278,6 +276,36 @@ final class AgentSessionManager: ObservableObject {
             return await present(prompt: .permission(request))
         case .question(let request):
             return await present(prompt: .question(request))
+        }
+    }
+
+    /// Shared status label for a session, aware of its pending prompt.
+    /// While a permission prompt is up we force waitingForInput (clear busy);
+    /// prefer the tool name / summary so the UI still identifies what is
+    /// awaiting Allow rather than a generic "Waiting". Callers that already
+    /// hold the session's pending prompt pass it in to avoid a second lookup.
+    static func displayStatusText(for session: Session, pending: PendingPrompt?) -> String {
+        if let pending {
+            switch pending {
+            case .permission(let request):
+                if let summary = session.toolSummary, summary != request.toolName {
+                    return "\(request.toolName) · \(summary)"
+                }
+                return request.toolName
+            case .question:
+                return String(localized: "Waiting")
+            }
+        }
+        switch session.status {
+        case .runningTool(let tool):
+            if let summary = session.toolSummary, summary != tool {
+                return "\(tool) · \(summary)"
+            }
+            return tool
+        case .thinking:
+            return session.promptPreview ?? session.status.label
+        default:
+            return session.status.label
         }
     }
 
@@ -320,7 +348,18 @@ final class AgentSessionManager: ObservableObject {
         guard pendingPrompts[key] == nil else { return nil }
 
         withAnimation(.smooth(duration: 0.25)) {
-            pendingPrompts[key] = prompt
+            // Assign a new dictionary so `@Published` always fires (in-place
+            // subscript writes are easy to miss in observation).
+            var prompts = pendingPrompts
+            prompts[key] = prompt
+            pendingPrompts = prompts
+            // Cursor's beforeShellExecution maps to runningTool (busy=true) for
+            // the whole Allow wait; Claude PermissionRequest already flips to
+            // waitingForInput. AskUserQuestion arrives while still busy via
+            // PreToolUse — clear busy for every pending kind so the elapsed
+            // indicator cannot keep painting a clipped lone "0" / "Ns" at the
+            // closed-notch wing for seconds.
+            clearBusyWhilePending(sessionKey: key)
         }
         schedulePromptTimeout(for: key)
 
@@ -333,6 +372,22 @@ final class AgentSessionManager: ObservableObject {
                 continuation.resume(returning: nil)
             }
         }
+    }
+
+    /// Flips a session out of busy statuses while a notch prompt is showing.
+    /// Must run inside the same `withAnimation` / publish turn as setting
+    /// `pendingPrompts` so the live activity drops the elapsed counter
+    /// immediately. Reassigns the `sessions` array (same `@Published` caveat
+    /// as `pendingPrompts`) so observers always see `isBusy == false`.
+    private func clearBusyWhilePending(sessionKey key: String) {
+        guard let index = sessions.firstIndex(where: { $0.id == key }) else { return }
+        guard sessions[index].status.isBusy else { return }
+        var updated = sessions
+        let now = Date()
+        updated[index].status = .waitingForInput
+        updated[index].statusChangedAt = now
+        updated[index].lastUpdated = now
+        sessions = updated
     }
 
     private func schedulePromptTimeout(for key: String) {
@@ -390,7 +445,9 @@ final class AgentSessionManager: ObservableObject {
         promptTimeoutTasks[key] = nil
         guard pendingPrompts[key] != nil || promptContinuations[key] != nil else { return }
         withAnimation(.smooth(duration: 0.25)) {
-            _ = pendingPrompts.removeValue(forKey: key)
+            var prompts = pendingPrompts
+            prompts.removeValue(forKey: key)
+            pendingPrompts = prompts
         }
         let continuation = promptContinuations.removeValue(forKey: key)
         continuation?.resume(returning: reply)
