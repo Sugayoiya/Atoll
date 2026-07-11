@@ -12,6 +12,7 @@
 |-------|----------|----------|
 | App-wide view behavior | `DynamicIsland/extensions/` | `ConditionalModifier.swift` (`.conditionalModifier(_:transform:)`), `View+Parallax3D.swift`, `Button+Bouncing.swift` (`.bouncingStyle(vm:)`), `ActionBar.swift` |
 | Feature-scoped modifiers | Inside the feature folder | `PulsingModifier` in `components/Recording/RecordingLiveActivity.swift` (reused by `PrivacyLiveActivity`), `SettingsHighlightModifier` in `components/Settings/SettingsView.swift` |
+| Feature-scoped shared views | Feature folder, consumed by 2+ views in that feature | `AgentElapsedIndicator` in `components/AgentHooks/` (Live Activity + Agents panel) |
 | Feature-scoped AppKit helpers | Feature folder as `Ext+Type.swift` | `components/Shelf/Ext+NSImage.swift`, `components/Shelf/Ext+NSAlert.swift` |
 | View-presenting services | Feature `Services/` exposing a modifier | `components/Shelf/Services/QuickLookService.swift` → `.quickLookPresenter(using:)` |
 | Non-SwiftUI helpers used by views | `DynamicIsland/helpers/` | `helpers/LiquidGlassBackground.swift`, `helpers/AccessibilityPermissionStore.swift` |

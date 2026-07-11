@@ -70,6 +70,26 @@ wing, sized off `vm.effectiveClosedNotchHeight` and shown only when
 > measurement) and the rendered `Text.frame(maxWidth:)` so they can't drift.
 > See `components/AgentHooks/AgentLiveActivity.swift` for the reference implementation.
 
+- **Agent elapsed counter**: use shared `AgentElapsedIndicator` (closed notch +
+  Agents panel). Show only when `status.isBusy && pendingPrompt == nil` and the
+  status has persisted ≥ `revealDelay` (2s) — this prevents the clipped lone
+  `"0"` flash between PreToolUse and a permission/question prompt. Format:
+  `"Ns"` under 60s, `"m:ss"` after (never `"0s"` / `"0:ss"`). Reserve wing
+  width via `couldShow` + `AgentElapsedIndicator.reservedWidth` (measured
+  `"00:00"`), not via the delayed `isVisible`. During the delay, reserve with
+  a clear frame of that width — never a digit `Text` (even `.hidden()` /
+  opacity-0), because NotchShape clipping can still leak a lone leading `"0"`
+  at the wing edge. **Manager contract**: `present(prompt:)` must set the
+  session to `.waitingForInput` (clear busy) for the whole Allow / question
+  wait — Cursor's `beforeShellExecution` otherwise stays `runningTool` for
+  seconds and the wing can keep a clipped elapsed digit even when the UI
+  pending gate fails to refresh.
+
+- **Agent status text**: pending-aware label logic lives only in
+  `AgentSessionManager.displayStatusText(for:pending:)` — views (Live Activity,
+  Agents panel) pass the pending prompt they already hold instead of re-querying
+  the manager or duplicating the switch. Don't reintroduce per-view copies.
+
 - **Brand/provider icons**: prefer bundled monochrome template imagesets over
   approximate SF Symbols (`Assets.xcassets/AgentLogoClaude.imageset`, `AgentLogoCursor.imageset`,
   `Github.imageset`). SVG assets require explicit `width`/`height` attributes on the
@@ -104,6 +124,21 @@ wing, sized off `vm.effectiveClosedNotchHeight` and shown only when
 
 ## Common Mistakes
 
+- **Hand-written `==` on a growing enum** (`SneakContentType` bug, 07-11): a manual
+  `static func ==` with a case list + `default: return false` silently breaks when a
+  new case is added — `.claudeCode == .claudeCode` returned `false`, so every
+  `sneakPeek.type != .claudeCode` exclusion in `ContentView` passed and the generic
+  HUD progress branch rendered a bare `"  0"` (`PercentageLabel`, `%3d` of value 0)
+  during Claude Code sneak peeks, while the real `== .claudeCode` branch never
+  rendered. **Rule**: declare `: Equatable` and rely on compiler synthesis (works
+  with associated values); never hand-write `==` for simple enums. If a custom `==`
+  is truly needed, it must not have a `default` arm — enumerate all cases so the
+  compiler flags new ones.
+- **Copy-pasting a Live Activity gating condition** to suppress a related view
+  (e.g. sneak peek): extract the condition into one computed property
+  (`ContentView.isAgentLiveActivityVisible`) and reference it from the render
+  branch and every suppression/size check — two hand-mirrored boolean
+  expressions will drift.
 - Putting business logic (timers, socket handling, system observation) in the view —
   it belongs in a manager; the view only renders `@Published` state.
 - Building a Live Activity without wiring it into `ContentView`'s priority chain.
