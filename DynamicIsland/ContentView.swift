@@ -949,7 +949,7 @@ struct ContentView: View {
                           TimerLiveActivity()
                       } else if (!isCurrentScreenExpansionVisible || currentScreenExpansionType == .reminder) && vm.notchState == .closed && reminderManager.isActive && enableReminderLiveActivity && !vm.hideOnClosed {
                           ReminderLiveActivity()
-                      } else if !isCurrentScreenExpansionVisible && vm.notchState == .closed && agentSessionManager.isActive && (enableClaudeCodeLiveActivity || enableCursorLiveActivity) && !vm.hideOnClosed {
+                      } else if isAgentLiveActivityVisible {
                           AgentLiveActivity()
                       } else if (!isCurrentScreenExpansionVisible || currentScreenExpansionType == .recording) && vm.notchState == .closed && (recordingManager.isRecording || !recordingManager.isRecorderIdle) && Defaults[.enableScreenRecordingDetection] && !vm.hideOnClosed && !musicPairingEligible {
                           RecordingLiveActivity()
@@ -1045,9 +1045,10 @@ struct ContentView: View {
                                   .padding(.bottom, 10)
                               }
                           }
-                          // Claude Code sneak peek
+                          // Claude Code sneak peek — redundant when the AgentLiveActivity
+                          // already shows the pending state in the closed-notch row above.
                           else if coordinator.sneakPeek.type == .claudeCode {
-                              if !vm.hideOnClosed && activeSneakPeekStyle == .standard {
+                              if !vm.hideOnClosed && activeSneakPeekStyle == .standard && !isAgentLiveActivityVisible {
                                   let accent = (coordinator.sneakPeek.accentColor ?? AgentSessionManager.defaultAccentColor).ensureMinimumBrightness(factor: 0.7)
                                   HStack(alignment: .center, spacing: 6) {
                                       // sneakPeek.icon carries the provider's brand asset name
@@ -2669,9 +2670,20 @@ struct ContentView: View {
     private func hideMusicControlWindow() {}
     #endif
     
+    /// Single source of truth for the AgentLiveActivity branch in the
+    /// closed-notch row; also gates the claudeCode sneak peek suppression.
+    private var isAgentLiveActivityVisible: Bool {
+        !isCurrentScreenExpansionVisible && vm.notchState == .closed && agentSessionManager.isActive && (enableClaudeCodeLiveActivity || enableCursorLiveActivity) && !vm.hideOnClosed
+    }
+
     private func shouldFixSizeForSneakPeek() -> Bool {
         guard isSneakPeekVisibleOnCurrentScreen else { return false }
         let style = resolvedSneakPeekStyle()
+
+        // Suppressed claudeCode sneak peek row must not reserve height.
+        if coordinator.sneakPeek.type == .claudeCode && isAgentLiveActivityVisible {
+            return false
+        }
         
         // Check for extension sneak peek
         if case .extensionLiveActivity = coordinator.sneakPeek.type {
