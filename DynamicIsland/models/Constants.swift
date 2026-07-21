@@ -1155,6 +1155,13 @@ extension Defaults.Keys {
     static let claudeCodeSneakPeekEnabled = Key<Bool>("claudeCodeSneakPeekEnabled", default: true)
     static let claudeCodePermissionPromptEnabled = Key<Bool>("claudeCodePermissionPromptEnabled", default: false)
     static let claudeCodeQuestionAnswerEnabled = Key<Bool>("claudeCodeQuestionAnswerEnabled", default: false)
+    /// Name of the Claude Code settings file under `~/.claude/` (or
+    /// `$CLAUDE_CONFIG_DIR`) that Atoll should write its hook registration
+    /// into. The default `settings.json` matches Claude Code's own default.
+    /// Users who launch Claude with `--settings <file>` (e.g. a bedrock
+    /// profile) should set this to the same file name so Atoll's hooks land
+    /// where Claude actually reads them.
+    static let claudeCodeSettingsFileName = Key<String>("claudeCodeSettingsFileName", default: "settings.json")
     /// AskUserQuestion notch fit-check limits. Payloads exceeding any of these
     /// fall back to Claude's terminal prompt (parse returns nil, no reply).
     static let claudeCodeQuestionMaxOptionCount = Key<Int>("claudeCodeQuestionMaxOptionCount", default: 6)

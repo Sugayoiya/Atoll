@@ -179,6 +179,25 @@ final class AgentSessionManager: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Settings-file migration: when the user retargets Atoll at a different
+        // Claude Code settings file (e.g. switching to a `--settings` profile
+        // like settings-bedrock.json), prune the prior file and reinstall into
+        // the new one. `.prior` option ensures `change.oldValue` is populated
+        // so the prune targets the right file even after Defaults is updated.
+        Defaults.publisher(.claudeCodeSettingsFileName, options: [.prior])
+            .receive(on: RunLoop.main)
+            .sink { [weak self] change in
+                guard let self else { return }
+                let oldFileName = change.oldValue.isEmpty ? "settings.json" : change.oldValue
+                Task.detached(priority: .utility) {
+                    ClaudeHookInstaller.migrateSettingsFile(from: oldFileName)
+                    if await self.providers[ClaudeProvider.providerId]?.isEnabled == true {
+                        ClaudeHookInstaller.installIfNeeded()
+                    }
+                }
+            }
+            .store(in: &cancellables)
+
         if anyProviderEnabled {
             startIfNeeded()
         }

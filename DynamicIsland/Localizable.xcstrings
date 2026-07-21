@@ -14374,6 +14374,9 @@
     "Claude Code Live Activity" : {
 
     },
+    "Claude Code settings file" : {
+
+    },
     "Clear" : {
       "localizations" : {
         "fr" : {
@@ -49798,6 +49801,12 @@
         }
       }
     },
+    "Removes the Atoll hook script from ~/.claude/hooks/ and deletes only Atoll-managed entries from %@. Other hooks in that file are left untouched. Re-enabling the Claude Code live activity will reinstall them." : {
+
+    },
+    "Removes the Atoll hook script from ~/.cursor/hooks/ and deletes only Atoll-managed entries from ~/.cursor/hooks.json. Other hooks in that file are left untouched. Re-enabling the Cursor live activity will reinstall them." : {
+
+    },
     "Render" : {
       "localizations" : {
         "ko" : {
@@ -54355,6 +54364,9 @@
         }
       }
     },
+    "settings.json" : {
+
+    },
     "Shelf" : {
       "localizations" : {
         "ar" : {
@@ -57641,10 +57653,10 @@
         }
       }
     },
-    "Shows Claude Code session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.claude/hooks and registers it in Claude Code's settings.json. The permission prompt shows Allow/Deny in the notch for risky tools (e.g. Bash); question answering shows Claude's multiple-choice questions as tappable options (questions exceeding the option-count or label-length limits fall back to the terminal prompt). If you don't respond within a few seconds, Claude falls back to its normal terminal prompt." : {
+    "Shows Claude Code session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.claude/hooks and registers it in Claude Code's settings file. The permission prompt shows Allow/Deny in the notch for risky tools (e.g. Bash); question answering shows Claude's multiple-choice questions as tappable options (questions exceeding the option-count or label-length limits fall back to the terminal prompt). If you don't respond within a few seconds, Claude falls back to its normal terminal prompt. If you launch Claude Code with `--settings <file>` (e.g. a bedrock profile), set the settings file name above to match so hooks land where Claude actually reads them." : {
 
     },
-    "Shows Cursor agent session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.cursor/hooks and registers it in ~/.cursor/hooks.json. The permission prompt shows Allow/Deny in the notch for shell commands and MCP tool calls; if you don't respond within a few seconds, Cursor falls back to its own permission flow. Disabling the toggle keeps the hooks installed but ignores their events; uninstalling removes only Atoll-managed entries." : {
+    "Shows Cursor agent session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.cursor/hooks and registers it in ~/.cursor/hooks.json. The permission prompt shows Allow/Deny in the notch for shell commands and MCP tool calls; if you don't respond within a few seconds, Cursor falls back to its own permission flow. Disabling the toggle keeps the hooks installed but ignores their events; the Uninstall button above removes only Atoll-managed entries." : {
 
     },
     "Shows green camera icon and yellow microphone icon when in use. Uses event-driven CoreAudio and CoreMediaIO APIs." : {
@@ -64565,7 +64577,6 @@
     },
     "Uninstall" : {
       "comment" : "merge:ko:alt='제거'",
-      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -64676,6 +64687,15 @@
           }
         }
       }
+    },
+    "Uninstall Atoll hooks" : {
+
+    },
+    "Uninstall Atoll hooks from Claude Code?" : {
+
+    },
+    "Uninstall Atoll hooks from Cursor?" : {
+
     },
     "Unknown" : {
       "comment" : "Description of a calendar authorization status that is not explicitly listed. | Description of a calendar authorization status that is not explicitly listed. | merge:ko:alt='알 수 없음'",

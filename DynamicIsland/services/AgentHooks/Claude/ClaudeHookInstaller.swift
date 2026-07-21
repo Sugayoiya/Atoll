@@ -17,6 +17,7 @@
  */
 
 import Foundation
+import Defaults
 
 /// Installs/uninstalls the Atoll hook script into the Claude Code
 /// configuration directory (`~/.claude` or `$CLAUDE_CONFIG_DIR`) and
@@ -53,8 +54,22 @@ enum ClaudeHookInstaller {
         hooksDirectory.appendingPathComponent(ClaudeHookScript.fileName)
     }
 
+    /// Filename under the Claude config dir that Atoll writes its hook
+    /// registration into. Defaults to `settings.json` (Claude Code's own
+    /// default); users who launch Claude with `--settings <file>` should set
+    /// `Defaults[.claudeCodeSettingsFileName]` to match so hooks land in the
+    /// file Claude actually reads.
+    private static var settingsFileName: String {
+        let name = Defaults[.claudeCodeSettingsFileName]
+        return name.isEmpty ? "settings.json" : name
+    }
+
+    private static func settingsURL(forFileName fileName: String) -> URL {
+        claudeConfigDirectory.appendingPathComponent(fileName)
+    }
+
     private static var settingsURL: URL {
-        claudeConfigDirectory.appendingPathComponent("settings.json")
+        settingsURL(forFileName: settingsFileName)
     }
 
     static var isClaudeCodeInstalled: Bool {
@@ -131,6 +146,54 @@ enum ClaudeHookInstaller {
         if let output = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
             try? output.write(to: settingsURL)
         }
+    }
+
+    /// Removes Atoll-managed hook entries from a specific settings file
+    /// (without touching the hook script itself). Used by
+    /// `migrateSettingsFile(from:to:)` to clean up the prior file when the
+    /// user changes `Defaults[.claudeCodeSettingsFileName]`.
+    private static func pruneSettingsFile(named fileName: String) {
+        let url = settingsURL(forFileName: fileName)
+        guard let data = try? Data(contentsOf: url),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let hooks = json["hooks"] as? [String: Any] else {
+            return
+        }
+
+        var updatedHooks: [String: Any] = [:]
+        for (event, value) in hooks {
+            guard let entries = value as? [[String: Any]] else {
+                updatedHooks[event] = value
+                continue
+            }
+            let pruned = pruneManagedHooks(from: entries)
+            if !pruned.isEmpty {
+                updatedHooks[event] = pruned
+            }
+        }
+
+        if updatedHooks.isEmpty {
+            json.removeValue(forKey: "hooks")
+        } else {
+            json["hooks"] = updatedHooks
+        }
+
+        if let output = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+            try? output.write(to: url)
+        }
+    }
+
+    /// Migrates hook registration from a previously-configured settings file
+    /// to the current one. Called when `Defaults[.claudeCodeSettingsFileName]`
+    /// changes: prune the prior file (if any) and re-install into the new file
+    /// so hooks land where Claude actually reads them. The hook script itself
+    /// lives in `~/.claude/hooks/` regardless of the settings file, so it is
+    /// not moved. If the provider is currently disabled, only the prune step
+    /// runs — re-enabling the toggle will reinstall into the new file.
+    static func migrateSettingsFile(from oldFileName: String) {
+        guard oldFileName != settingsFileName, !oldFileName.isEmpty else { return }
+        pruneSettingsFile(named: oldFileName)
+        Logger.log("Migrated Claude Code settings file: \(oldFileName) → \(settingsFileName)", category: .debug)
     }
 
     private static func updateSettings() -> Bool {
