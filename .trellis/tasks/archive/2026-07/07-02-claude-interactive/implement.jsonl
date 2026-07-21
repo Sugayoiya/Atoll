@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/07-02-claude-interactive/research/claude-hooks-decision-control.md", "reason": "Authoritative Claude Code hooks decision-control reference: PreToolUse hookSpecificOutput schema, AskUserQuestion answers format, defer headless-only constraint, timeout fallback semantics — required to implement the bidirectional socket protocol correctly"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend guideline index (SwiftUI notch UI work: permission dialog, AskUserQuestion answer UI, live activity enrichment)"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend guideline index (Unix socket server, hook script, event handling changes)"}

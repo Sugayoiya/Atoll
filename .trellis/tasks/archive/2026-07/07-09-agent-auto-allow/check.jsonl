@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "系统层规范索引"}
+{"file": ".trellis/spec/backend/claude-hook-socket-protocol.md", "reason": "核对决策回复 schema 与回落语义未被破坏"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "并发与禁用模式检查"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "外部读取降级路径检查"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "UI 层质量标准"}
+{"file": ".trellis/tasks/07-09-agent-auto-allow/research/cursor-allowlist-sources.md", "reason": "验证实现与 Cursor allowlist 来源事实一致"}

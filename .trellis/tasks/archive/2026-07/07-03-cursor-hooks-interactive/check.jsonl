@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "System-layer checklist to verify changes against"}
+{"file": ".trellis/spec/backend/claude-hook-socket-protocol.md", "reason": "Verify the generalized channel still honors the timeout chain invariant and reply schemas"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Concurrency + forbidden patterns review checklist"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "UI standards and anti-patterns for the generalized live activity"}
+{"file": ".trellis/tasks/07-03-cursor-hooks-interactive/research/cursor-hooks-reference.md", "reason": "Cross-check Cursor event/reply schemas used in the implementation against the documented API"}

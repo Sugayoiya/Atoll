@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "UI layer spec index + pre-dev checklist"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Live Activity three-zone pattern and view conventions"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Manager/Defaults access conventions used by AgentLiveActivity"}
+{"file": ".trellis/tasks/07-09-agent-live-activity-width-icons/research/layout-and-icons.md", "reason": "Root-cause analysis of the corner overflow + brand icon sourcing and API change plan"}

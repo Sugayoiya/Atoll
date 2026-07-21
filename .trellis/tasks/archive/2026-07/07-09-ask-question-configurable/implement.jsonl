@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/index.md", "reason": "System-layer conventions for AgentHooks services and managers"}
+{"file": ".trellis/spec/backend/claude-hook-socket-protocol.md", "reason": "Hook reply schema, timeout chain, error matrix for AskUserQuestion pre-answering"}
+{"file": ".trellis/spec/backend/persistence-guidelines.md", "reason": "Defaults key conventions for new configurable limits"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "SwiftUI layer conventions for NotchAgentsView and Settings changes"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Defaults binding patterns for settings UI"}
