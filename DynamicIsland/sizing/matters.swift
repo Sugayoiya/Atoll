@@ -235,6 +235,63 @@ func statsAdjustedNotchSize(
     return adjustedSize
 }
 
+// MARK: - Agents tab height adaptation
+
+/// Height of a plain session row in NotchAgentsView (header only):
+/// vertical padding 10×2 + two-line header text block (~24pt).
+let agentsSessionRowHeight: CGFloat = 44
+/// Height of a session row with an inline pending prompt expanded
+/// (header + shield/question title + summary + button/chip row).
+let agentsPendingRowHeight: CGFloat = 104
+/// VStack spacing between session rows in NotchAgentsView.
+let agentsRowSpacing: CGFloat = 8
+/// ScrollView `.padding(.vertical, 6)` top + bottom.
+let agentsListVerticalPadding: CGFloat = 12
+/// Content the base 200pt notch already fits: ~2 plain rows + 1 pending row
+/// (2×44 + 104 + 2×8 + 12). Only the overflow beyond this grows the notch.
+let agentsBaseContentCapacity: CGFloat = 2 * agentsSessionRowHeight + agentsPendingRowHeight + 2 * agentsRowSpacing + agentsListVerticalPadding
+/// Growth cap: about 3 extra plain rows (3 × (44 + 8)); anything beyond
+/// falls back to the existing ScrollView scrolling.
+let agentsMaxExtraNotchHeight: CGFloat = 3 * (agentsSessionRowHeight + agentsRowSpacing)
+
+/// Grows the open-notch size for the Agents tab based on how many agent
+/// session rows (and inline pending prompts) need to be visible, mirroring
+/// `statsAdjustedNotchSize`. Growth is discrete per row count and capped;
+/// overflow stays scrollable.
+func agentsAdjustedNotchSize(
+    from baseSize: CGSize,
+    isAgentsTabActive: Bool,
+    sessionCount: Int,
+    pendingCount: Int
+) -> CGSize {
+    guard isAgentsTabActive, sessionCount > 0 else {
+        return baseSize
+    }
+
+    let pendingRows = min(max(pendingCount, 0), sessionCount)
+    let plainRows = sessionCount - pendingRows
+    let contentHeight = CGFloat(plainRows) * agentsSessionRowHeight
+        + CGFloat(pendingRows) * agentsPendingRowHeight
+        + CGFloat(max(sessionCount - 1, 0)) * agentsRowSpacing
+        + agentsListVerticalPadding
+
+    let extraHeight = min(max(contentHeight - agentsBaseContentCapacity, 0), agentsMaxExtraNotchHeight)
+    guard extraHeight > 0 else {
+        return baseSize
+    }
+
+    var adjustedSize = baseSize
+    adjustedSize.height += extraHeight
+
+    // Respect the same screen-height cap as the terminal tab so the growth
+    // never pushes the notch past the configured max fraction; overflow
+    // stays scrollable inside NotchAgentsView.
+    let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
+    let maxFraction = Defaults[.terminalMaxHeightFraction]
+    adjustedSize.height = min(adjustedSize.height, max(300, screenHeight * maxFraction))
+    return adjustedSize
+}
+
 func notchShadowPaddingValue(isMinimalistic: Bool) -> CGFloat {
     isMinimalistic ? notchShadowPaddingMinimalistic : notchShadowPaddingStandard
 }

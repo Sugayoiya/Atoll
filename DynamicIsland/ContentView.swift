@@ -43,6 +43,7 @@ struct ContentView: View {
     @ObservedObject var musicManager = MusicManager.shared
     @ObservedObject var timerManager = TimerManager.shared
     @ObservedObject var reminderManager = ReminderLiveActivityManager.shared
+    @ObservedObject var agentSessionManager = AgentSessionManager.shared
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var statsManager = StatsManager.shared
     @ObservedObject var recordingManager = ScreenRecordingManager.shared
@@ -63,6 +64,8 @@ struct ContentView: View {
     @Default(.showNetworkGraph) var showNetworkGraph
     @Default(.showDiskGraph) var showDiskGraph
     @Default(.enableReminderLiveActivity) var enableReminderLiveActivity
+    @Default(.enableClaudeCodeLiveActivity) var enableClaudeCodeLiveActivity
+    @Default(.enableCursorLiveActivity) var enableCursorLiveActivity
     @Default(.enableTimerFeature) var enableTimerFeature
     @Default(.timerDisplayMode) var timerDisplayMode
     @Default(.enableHorizontalMusicGestures) var enableHorizontalMusicGestures
@@ -928,7 +931,7 @@ struct ContentView: View {
                             styleOverride: batteryModel.activeTemporaryHUDKind.map { resolvedBatteryNotificationStyle(for: $0) }
                         )
                         .id(batteryModel.activeTemporaryHUDToken)
-                      } else if isSneakPeekVisibleOnCurrentScreen && (Defaults[.inlineHUD] || isAirPodsListeningModeSneak) && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .timer) && (coordinator.sneakPeek.type != .reminder) && !coordinator.sneakPeek.type.isExtensionPayload && ((coordinator.sneakPeek.type != .volume && coordinator.sneakPeek.type != .brightness && coordinator.sneakPeek.type != .backlight) || vm.notchState == .closed) {
+                      } else if isSneakPeekVisibleOnCurrentScreen && (Defaults[.inlineHUD] || isAirPodsListeningModeSneak) && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .timer) && (coordinator.sneakPeek.type != .reminder) && (coordinator.sneakPeek.type != .claudeCode) && !coordinator.sneakPeek.type.isExtensionPayload && ((coordinator.sneakPeek.type != .volume && coordinator.sneakPeek.type != .brightness && coordinator.sneakPeek.type != .backlight) || vm.notchState == .closed) {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(
                                   coordinator.sneakPeek.type == .capsLock
@@ -946,6 +949,8 @@ struct ContentView: View {
                           TimerLiveActivity()
                       } else if (!isCurrentScreenExpansionVisible || currentScreenExpansionType == .reminder) && vm.notchState == .closed && reminderManager.isActive && enableReminderLiveActivity && !vm.hideOnClosed {
                           ReminderLiveActivity()
+                      } else if isAgentLiveActivityVisible {
+                          AgentLiveActivity()
                       } else if (!isCurrentScreenExpansionVisible || currentScreenExpansionType == .recording) && vm.notchState == .closed && (recordingManager.isRecording || !recordingManager.isRecorderIdle) && Defaults[.enableScreenRecordingDetection] && !vm.hideOnClosed && !musicPairingEligible {
                           RecordingLiveActivity()
                       } else if (!isCurrentScreenExpansionVisible || currentScreenExpansionType == .download) && vm.notchState == .closed && downloadManager.isDownloading && Defaults[.enableDownloadListener] && !vm.hideOnClosed {
@@ -987,7 +992,7 @@ struct ContentView: View {
                        }
                       
                       if isSneakPeekVisibleOnCurrentScreen {
-                          if (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .timer) && (coordinator.sneakPeek.type != .reminder) && (coordinator.sneakPeek.type != .capsLock) && !coordinator.sneakPeek.type.isExtensionPayload && !Defaults[.inlineHUD] && !isAirPodsListeningModeSneak && ((coordinator.sneakPeek.type != .volume && coordinator.sneakPeek.type != .brightness && coordinator.sneakPeek.type != .backlight) || vm.notchState == .closed) {
+                          if (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .timer) && (coordinator.sneakPeek.type != .reminder) && (coordinator.sneakPeek.type != .capsLock) && (coordinator.sneakPeek.type != .claudeCode) && !coordinator.sneakPeek.type.isExtensionPayload && !Defaults[.inlineHUD] && !isAirPodsListeningModeSneak && ((coordinator.sneakPeek.type != .volume && coordinator.sneakPeek.type != .brightness && coordinator.sneakPeek.type != .backlight) || vm.notchState == .closed) {
                               SystemEventIndicatorModifier(eventType: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, sendEventBack: { _ in
                                   //
                               })
@@ -1037,6 +1042,31 @@ struct ContentView: View {
                                           )
                                       }
                                   }
+                                  .padding(.bottom, 10)
+                              }
+                          }
+                          // Claude Code sneak peek — redundant when the AgentLiveActivity
+                          // already shows the pending state in the closed-notch row above.
+                          else if coordinator.sneakPeek.type == .claudeCode {
+                              if !vm.hideOnClosed && activeSneakPeekStyle == .standard && !isAgentLiveActivityVisible {
+                                  let accent = (coordinator.sneakPeek.accentColor ?? AgentSessionManager.defaultAccentColor).ensureMinimumBrightness(factor: 0.7)
+                                  HStack(alignment: .center, spacing: 6) {
+                                      // sneakPeek.icon carries the provider's brand asset name
+                                      // (see AgentSessionManager.showAttentionSneakPeek).
+                                      (coordinator.sneakPeek.icon.isEmpty
+                                          ? AgentProviderIcon.system(name: "asterisk")
+                                          : AgentProviderIcon.asset(name: coordinator.sneakPeek.icon))
+                                          .view(size: 12)
+                                      GeometryReader { geo in
+                                          MarqueeText(
+                                              .constant(coordinator.sneakPeek.title + " - " + coordinator.sneakPeek.subtitle),
+                                              textColor: accent,
+                                              minDuration: 1,
+                                              frameWidth: geo.size.width
+                                          )
+                                      }
+                                  }
+                                  .foregroundStyle(accent)
                                   .padding(.bottom, 10)
                               }
                           }
@@ -1100,6 +1130,8 @@ struct ContentView: View {
                                 NotchNotesView()
                             case .terminal:
                                 NotchTerminalView()
+                            case .agents:
+                                NotchAgentsView()
                             case .extensionExperience:
                                 if let payload = currentExtensionTabPayload() {
                                     ExtensionNotchExperienceTabView(payload: payload)
@@ -1880,6 +1912,11 @@ struct ContentView: View {
 
     // MARK: - Private Methods
     private func openNotch() {
+        // A pending agent prompt takes over the expanded notch so the user
+        // lands directly on the Allow/Deny or question options.
+        if agentSessionManager.hasPendingPrompts {
+            coordinator.currentView = .agents
+        }
         withAnimation(.bouncy.speed(1.2)) {
             vm.open()
         }
@@ -2633,9 +2670,20 @@ struct ContentView: View {
     private func hideMusicControlWindow() {}
     #endif
     
+    /// Single source of truth for the AgentLiveActivity branch in the
+    /// closed-notch row; also gates the claudeCode sneak peek suppression.
+    private var isAgentLiveActivityVisible: Bool {
+        !isCurrentScreenExpansionVisible && vm.notchState == .closed && agentSessionManager.isActive && (enableClaudeCodeLiveActivity || enableCursorLiveActivity) && !vm.hideOnClosed
+    }
+
     private func shouldFixSizeForSneakPeek() -> Bool {
         guard isSneakPeekVisibleOnCurrentScreen else { return false }
         let style = resolvedSneakPeekStyle()
+
+        // Suppressed claudeCode sneak peek row must not reserve height.
+        if coordinator.sneakPeek.type == .claudeCode && isAgentLiveActivityVisible {
+            return false
+        }
         
         // Check for extension sneak peek
         if case .extensionLiveActivity = coordinator.sneakPeek.type {

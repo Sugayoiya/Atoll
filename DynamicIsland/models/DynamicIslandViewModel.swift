@@ -219,6 +219,29 @@ class DynamicIslandViewModel: NSObject, ObservableObject {
             }
             .store(in: &cancellables)
 
+        AgentSessionManager.shared.$sessions
+            .map(\.count)
+            .combineLatest(AgentSessionManager.shared.$pendingPrompts.map(\.count))
+            .removeDuplicates(by: ==)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _, _ in
+                guard let self else { return }
+                guard self.notchState == .open, self.coordinator.currentView == .agents else { return }
+                let updatedTarget = self.calculateDynamicNotchSize()
+                guard self.notchSize != updatedTarget else { return }
+                withAnimation(.smooth) {
+                    self.notchSize = updatedTarget
+                }
+                if let delegate = AppDelegate.shared {
+                    delegate.ensureWindowSize(
+                        addShadowPadding(to: updatedTarget, isMinimalistic: Defaults[.enableMinimalisticUI]),
+                        animated: true,
+                        force: false
+                    )
+                }
+            }
+            .store(in: &cancellables)
+
         coordinator.$notesLayoutState
             .removeDuplicates()
             .receive(on: RunLoop.main)
@@ -365,6 +388,16 @@ class DynamicIslandViewModel: NSObject, ObservableObject {
             let preferred = coordinator.notesLayoutState.preferredHeight
             adjustedSize.height = max(adjustedSize.height, preferred)
             return adjustedSize
+        }
+
+        if coordinator.currentView == .agents {
+            let agentManager = AgentSessionManager.shared
+            return agentsAdjustedNotchSize(
+                from: adjustedSize,
+                isAgentsTabActive: true,
+                sessionCount: agentManager.sessions.count,
+                pendingCount: agentManager.pendingPrompts.count
+            )
         }
 
         return statsAdjustedNotchSize(

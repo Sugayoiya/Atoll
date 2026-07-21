@@ -36,34 +36,8 @@ enum SneakContentType: Equatable {
     case privacy
     case lockScreen
     case capsLock
+    case claudeCode
     case extensionLiveActivity(bundleID: String, activityID: String)
-}
-
-extension SneakContentType {
-    static func == (lhs: SneakContentType, rhs: SneakContentType) -> Bool {
-        switch (lhs, rhs) {
-        case (.brightness, .brightness),
-             (.volume, .volume),
-             (.backlight, .backlight),
-             (.music, .music),
-             (.mic, .mic),
-             (.battery, .battery),
-             (.download, .download),
-             (.timer, .timer),
-             (.reminder, .reminder),
-             (.recording, .recording),
-             (.doNotDisturb, .doNotDisturb),
-             (.bluetoothAudio, .bluetoothAudio),
-             (.privacy, .privacy),
-             (.lockScreen, .lockScreen),
-             (.capsLock, .capsLock):
-            return true
-        case let (.extensionLiveActivity(lb, la), .extensionLiveActivity(rb, ra)):
-            return lb == rb && la == ra
-        default:
-            return false
-        }
-    }
 }
 
 extension SneakContentType {
@@ -105,7 +79,7 @@ class DynamicIslandViewCoordinator: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var hoverOpenSuppressedUntil: Date = .distantPast
     
-    private static let tabOrder: [NotchViews] = [.home, .shelf, .timer, .stats, .llmUsage, .colorPicker, .notes, .clipboard, .terminal, .extensionExperience]
+    private static let tabOrder: [NotchViews] = [.home, .shelf, .timer, .stats, .llmUsage, .colorPicker, .notes, .clipboard, .terminal, .agents, .extensionExperience]
     
     /// Direction of the most recent tab switch (true = forward/right, false = backward/left)
     @Published var tabSwitchForward: Bool = true
@@ -349,7 +323,7 @@ class DynamicIslandViewCoordinator: ObservableObject {
             resolvedDuration = duration
         }
         sneakPeekDuration = resolvedDuration
-        let bypassedTypes: [SneakContentType] = [.music, .timer, .reminder, .bluetoothAudio]
+        let bypassedTypes: [SneakContentType] = [.music, .timer, .reminder, .bluetoothAudio, .claudeCode]
         
         // Check if it's an extension type
         let isExtensionType: Bool
