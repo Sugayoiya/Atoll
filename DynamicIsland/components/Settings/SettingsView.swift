@@ -861,6 +861,12 @@ struct SettingsView: View {
             SettingsSearchEntry(tab: .lockScreen, title: "Reminder alignment", keywords: ["reminder", "alignment", "position"], highlightID: SettingsTab.lockScreen.highlightID(for: "Reminder alignment")),
             SettingsSearchEntry(tab: .lockScreen, title: "Reminder vertical offset", keywords: ["reminder", "offset", "position"], highlightID: SettingsTab.lockScreen.highlightID(for: "Reminder vertical offset")),
 
+            // Agent hooks (Claude Code, Cursor)
+            SettingsSearchEntry(tab: .liveActivities, title: "Enable Claude Code live activity", keywords: ["claude", "agent", "hook", "live activity"], highlightID: SettingsTab.liveActivities.highlightID(for: "Enable Claude Code live activity")),
+            SettingsSearchEntry(tab: .liveActivities, title: "Claude Code settings file", keywords: ["claude", "settings", "bedrock", "profile", "config"], highlightID: SettingsTab.liveActivities.highlightID(for: "Claude Code settings file")),
+            SettingsSearchEntry(tab: .liveActivities, title: "Uninstall Atoll hooks", keywords: ["claude", "cursor", "uninstall", "remove", "hooks"], highlightID: SettingsTab.liveActivities.highlightID(for: "Uninstall Atoll hooks")),
+            SettingsSearchEntry(tab: .liveActivities, title: "Enable Cursor live activity", keywords: ["cursor", "agent", "hook", "live activity"], highlightID: SettingsTab.liveActivities.highlightID(for: "Enable Cursor live activity")),
+
             // Extensions
             SettingsSearchEntry(tab: .extensions, title: "Enable third-party extensions", keywords: ["extensions", "authorization", "third party"], highlightID: SettingsTab.extensions.highlightID(for: "Enable third-party extensions")),
             SettingsSearchEntry(tab: .extensions, title: "Allow extension live activities", keywords: ["extensions", "live activities", "permissions"], highlightID: SettingsTab.extensions.highlightID(for: "Allow extension live activities")),
@@ -4040,6 +4046,17 @@ struct LiveActivitiesSettings: View {
     @Default(.enableDoNotDisturbDetection) var enableDoNotDisturbDetection
     @Default(.focusIndicatorNonPersistent) var focusIndicatorNonPersistent
     @Default(.capsLockIndicatorTintMode) var capsLockTintMode
+    @Default(.agentPromptTimeoutSeconds) var agentPromptTimeoutSeconds
+    @Default(.agentAutoAllowEnabled) var agentAutoAllowEnabled
+    @Default(.agentAutoAllowRules) var agentAutoAllowRules
+    @Default(.claudeCodeQuestionAnswerEnabled) var claudeCodeQuestionAnswerEnabled
+    @Default(.claudeCodeQuestionMaxOptionCount) var claudeCodeQuestionMaxOptionCount
+    @Default(.claudeCodeQuestionMaxOptionLabelLength) var claudeCodeQuestionMaxOptionLabelLength
+    @Default(.claudeCodeQuestionMaxCombinedLabelLength) var claudeCodeQuestionMaxCombinedLabelLength
+    @Default(.claudeCodeSettingsFileName) var claudeCodeSettingsFileName
+
+    @State private var isShowingClaudeHookUninstallConfirmation = false
+    @State private var isShowingCursorHookUninstallConfirmation = false
 
     private func highlightID(_ title: String) -> String {
         SettingsTab.liveActivities.highlightID(for: title)
@@ -4251,6 +4268,217 @@ struct LiveActivitiesSettings: View {
                 Text("Reminder Live Activity")
             } footer: {
                 Text("Configure countdown style and lock screen widgets in the Calendar tab.")
+            }
+
+            Section {
+                Defaults.Toggle(key: .enableClaudeCodeLiveActivity) {
+                    Text("Enable Claude Code live activity")
+                }
+                .settingsHighlight(id: highlightID("Enable Claude Code live activity"))
+
+                Defaults.Toggle(key: .claudeCodeSneakPeekEnabled) {
+                    Text("Show sneak peek when Claude needs attention")
+                }
+
+                Defaults.Toggle(key: .claudeCodePermissionPromptEnabled) {
+                    Text("Ask in the notch before Claude runs risky tools")
+                }
+                .settingsHighlight(id: highlightID("Ask in the notch before Claude runs risky tools"))
+
+                Defaults.Toggle(key: .claudeCodeQuestionAnswerEnabled) {
+                    Text("Answer Claude's questions from the notch")
+                }
+                .settingsHighlight(id: highlightID("Answer Claude's questions from the notch"))
+
+                if claudeCodeQuestionAnswerEnabled {
+                    Stepper(
+                        value: $claudeCodeQuestionMaxOptionCount,
+                        in: ClaudeAskUserQuestion.optionCountBounds
+                    ) {
+                        HStack {
+                            Text("Max options per question")
+                            Spacer()
+                            Text("\(claudeCodeQuestionMaxOptionCount)")
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    .settingsHighlight(id: highlightID("Max options per question"))
+
+                    Stepper(
+                        value: $claudeCodeQuestionMaxOptionLabelLength,
+                        in: 8...100,
+                        step: 2
+                    ) {
+                        HStack {
+                            Text("Max option label length")
+                            Spacer()
+                            Text("\(claudeCodeQuestionMaxOptionLabelLength)")
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    .settingsHighlight(id: highlightID("Max option label length"))
+
+                    Stepper(
+                        value: $claudeCodeQuestionMaxCombinedLabelLength,
+                        in: 20...400,
+                        step: 10
+                    ) {
+                        HStack {
+                            Text("Max combined label length")
+                            Spacer()
+                            Text("\(claudeCodeQuestionMaxCombinedLabelLength)")
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    .settingsHighlight(id: highlightID("Max combined label length"))
+                }
+
+                LabeledContent {
+                    TextField("settings.json", text: $claudeCodeSettingsFileName)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 220)
+                        .disableAutocorrection(true)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            let trimmed = claudeCodeSettingsFileName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if trimmed != claudeCodeSettingsFileName {
+                                claudeCodeSettingsFileName = trimmed
+                            }
+                            // Clearing the field falls back to settings.json
+                            // via ClaudeHookInstaller; reflect that in the UI.
+                            if trimmed.isEmpty {
+                                claudeCodeSettingsFileName = "settings.json"
+                            }
+                        }
+                } label: {
+                    Text("Claude Code settings file")
+                }
+                .settingsHighlight(id: highlightID("Claude Code settings file"))
+
+                Button("Uninstall Atoll hooks") {
+                    isShowingClaudeHookUninstallConfirmation = true
+                }
+                .settingsHighlight(id: highlightID("Uninstall Atoll hooks"))
+                .confirmationDialog(
+                    "Uninstall Atoll hooks from Claude Code?",
+                    isPresented: $isShowingClaudeHookUninstallConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Uninstall", role: .destructive) {
+                        AgentSessionManager.shared.uninstallHook(providerId: ClaudeProvider.providerId)
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Removes the Atoll hook script from ~/.claude/hooks/ and deletes only Atoll-managed entries from \(claudeCodeSettingsFileName). Other hooks in that file are left untouched. Re-enabling the Claude Code live activity will reinstall them.")
+                }
+            } header: {
+                Text("Claude Code Live Activity")
+            } footer: {
+                Text("Shows Claude Code session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.claude/hooks and registers it in Claude Code's settings file. The permission prompt shows Allow/Deny in the notch for risky tools (e.g. Bash); question answering shows Claude's multiple-choice questions as tappable options (questions exceeding the option-count or label-length limits fall back to the terminal prompt). If you don't respond within a few seconds, Claude falls back to its normal terminal prompt. If you launch Claude Code with `--settings <file>` (e.g. a bedrock profile), set the settings file name above to match so hooks land where Claude actually reads them.")
+            }
+
+            Section {
+                Defaults.Toggle(key: .enableCursorLiveActivity) {
+                    Text("Enable Cursor live activity")
+                }
+                .settingsHighlight(id: highlightID("Enable Cursor live activity"))
+
+                Defaults.Toggle(key: .cursorPermissionPromptEnabled) {
+                    Text("Ask in the notch before Cursor runs shell or MCP tools")
+                }
+                .settingsHighlight(id: highlightID("Ask in the notch before Cursor runs shell or MCP tools"))
+
+                Defaults.Toggle(key: .cursorAllowlistAutoAllowEnabled) {
+                    Text("Auto-allow commands already in Cursor's allowlist")
+                }
+                .settingsHighlight(id: highlightID("Auto-allow commands already in Cursor's allowlist"))
+
+                Button("Uninstall Atoll hooks") {
+                    isShowingCursorHookUninstallConfirmation = true
+                }
+                .settingsHighlight(id: highlightID("Uninstall Atoll hooks"))
+                .confirmationDialog(
+                    "Uninstall Atoll hooks from Cursor?",
+                    isPresented: $isShowingCursorHookUninstallConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Uninstall", role: .destructive) {
+                        AgentSessionManager.shared.uninstallHook(providerId: CursorProvider.providerId)
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Removes the Atoll hook script from ~/.cursor/hooks/ and deletes only Atoll-managed entries from ~/.cursor/hooks.json. Other hooks in that file are left untouched. Re-enabling the Cursor live activity will reinstall them.")
+                }
+            } header: {
+                Text("Cursor Live Activity")
+            } footer: {
+                Text("Shows Cursor agent session status (thinking, running tools, waiting for input) in the notch. Enabling this installs a hook script into ~/.cursor/hooks and registers it in ~/.cursor/hooks.json. The permission prompt shows Allow/Deny in the notch for shell commands and MCP tool calls; if you don't respond within a few seconds, Cursor falls back to its own permission flow. Disabling the toggle keeps the hooks installed but ignores their events; the Uninstall button above removes only Atoll-managed entries.")
+            }
+
+            Section {
+                HStack {
+                    Text("Prompt wait time")
+                    Spacer()
+                    Text("\(Int(agentPromptTimeoutSeconds))s")
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                }
+                Slider(
+                    value: $agentPromptTimeoutSeconds,
+                    in: AgentPromptTimeout.range,
+                    step: 5
+                )
+                .settingsHighlight(id: highlightID("Prompt wait time"))
+            } header: {
+                Text("Agent Prompt Timeout")
+            } footer: {
+                Text("How long permission and question prompts wait in the notch before falling back to the agent's own flow. Shared by Claude Code and Cursor; changing it updates the installed hook scripts and their configured timeouts automatically.")
+            }
+
+            Section {
+                Defaults.Toggle(key: .agentAutoAllowEnabled) {
+                    Text("Auto-allow commands matching my rules")
+                }
+                .settingsHighlight(id: highlightID("Auto-allow commands matching my rules"))
+
+                if agentAutoAllowRules.isEmpty {
+                    Text("No rules yet. Tap \"Always Allow\" on a permission prompt in the notch to add one.")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                } else {
+                    ForEach(agentAutoAllowRules) { rule in
+                        HStack {
+                            Text(rule.ruleText)
+                                .font(.system(.body, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Button {
+                                agentAutoAllowRules.removeAll { $0.id == rule.id }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Delete rule")
+                        }
+                        .opacity(agentAutoAllowEnabled ? 1 : 0.5)
+                    }
+
+                    Button(role: .destructive) {
+                        agentAutoAllowRules.removeAll()
+                    } label: {
+                        Text("Clear All Rules")
+                    }
+                }
+            } header: {
+                Text("Agent Auto-Allow Rules")
+            } footer: {
+                Text("Commands matching a rule (word-prefix match, e.g. \"git push\") are allowed automatically without showing the notch prompt. Rules are created from the \"Always Allow\" button on a permission prompt. Turning the toggle off keeps the rules but stops applying them.")
             }
         }
         .navigationTitle("Live Activities")
